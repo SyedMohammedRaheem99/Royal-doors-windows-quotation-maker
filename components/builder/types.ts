@@ -1,0 +1,55 @@
+import type { DiagramType, GstRatePercent, Handing, ItemSpecs, PricingMode } from "@/models/schemas";
+
+/** Client-side working state for one line item, before it's persisted as a QuotationItem. */
+export interface BuilderItem {
+  key: string;
+  productType: string; // rate-card slug; "" until chosen
+  description: string;
+  diagramType: DiagramType;
+  handing: Handing;
+  fanPoint: boolean;
+  measuredMm?: { w: number; h: number };
+  billed: { w: number; h: number }; // decimal feet, the value pricing actually uses
+  qty: number;
+  pricingMode: PricingMode;
+  rate: number; // snapshotted from the rate card at add-time, editable
+  specs: ItemSpecs;
+  surcharges: string[]; // keys into SURCHARGES
+  remarks: string;
+}
+
+export function emptyItem(key: string): BuilderItem {
+  return {
+    key,
+    productType: "",
+    description: "",
+    diagramType: "fixed",
+    handing: "none",
+    fanPoint: false,
+    billed: { w: 1, h: 1 },
+    qty: 1,
+    pricingMode: "per_sqft",
+    rate: 0,
+    specs: { profile: "", colour: "", glass: "", glassThickness: "", mesh: "", track: "", hardware: "", reinforcement: "" },
+    surcharges: [],
+    remarks: "",
+  };
+}
+
+export interface BuilderCustomer {
+  name: string;
+  phone: string;
+  siteAddress: string;
+  project: string;
+  referredBy: string;
+  gstin: string;
+}
+
+export function emptyCustomer(): BuilderCustomer {
+  return { name: "", phone: "", siteAddress: "", project: "", referredBy: "", gstin: "" };
+}
+
+export interface BuilderGst {
+  enabled: boolean;
+  rate: GstRatePercent;
+}
