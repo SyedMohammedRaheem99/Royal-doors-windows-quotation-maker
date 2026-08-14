@@ -10,6 +10,11 @@ export const authConfig: NextAuthConfig = {
   pages: {
     signIn: "/login",
   },
+  // Auth.js only auto-trusts the request host on recognised platforms (Vercel
+  // sets this for you). Without it, any other production host — a self-hosted
+  // box, or `next start` on a laptop for an offline demo — rejects its own
+  // callback URL with UntrustedHost and login silently fails.
+  trustHost: true,
   session: { strategy: "jwt" },
   callbacks: {
     authorized({ auth, request }) {
