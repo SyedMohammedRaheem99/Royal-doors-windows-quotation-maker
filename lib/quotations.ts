@@ -64,24 +64,44 @@ export async function getQuotationById(id: string): Promise<StoredQuotation | nu
   return col.findOne({ _id: new ObjectId(id) });
 }
 
+export const QUOTATIONS_PAGE_SIZE = 25;
+
+export interface Page<T> {
+  items: T[];
+  hasMore: boolean;
+  page: number;
+}
+
 export async function listQuotationsFor(
   actor: Actor,
-  opts: { search?: string; status?: QuotationStatus; limit?: number } = {}
-): Promise<StoredQuotation[]> {
+  opts: { search?: string; status?: QuotationStatus; page?: number; pageSize?: number } = {}
+): Promise<Page<StoredQuotation>> {
   const col = await quotationsCollection();
   const filter: Record<string, unknown> = { ...ownershipFilter(actor) };
 
   if (opts.status) filter.status = opts.status;
   if (opts.search) {
+    // A regex can't use the createdBy_createdAt / createdAt_desc indexes
+    // directly, but the ownership + status equality filters above narrow the
+    // candidate set first, so this scans a bounded working set rather than
+    // the whole collection — acceptable at this scale. See ROADMAP.md Phase 3.
     const re = new RegExp(opts.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     filter.$or = [{ quoteNo: re }, { "customer.name": re }, { "customer.project": re }];
   }
 
-  return col
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = opts.pageSize ?? QUOTATIONS_PAGE_SIZE;
+
+  // Fetch one extra row instead of a separate countDocuments() call — cheaper,
+  // and "is there a next page" is all the UI actually needs to know.
+  const rows = await col
     .find(filter)
     .sort({ createdAt: -1 })
-    .limit(opts.limit ?? 200)
+    .skip((page - 1) * pageSize)
+    .limit(pageSize + 1)
     .toArray();
+
+  return { items: rows.slice(0, pageSize), hasMore: rows.length > pageSize, page };
 }
 
 /** The single place a NEW quotation is ever created — see computeQuotationPricing for the anti-stale-GST discipline. */

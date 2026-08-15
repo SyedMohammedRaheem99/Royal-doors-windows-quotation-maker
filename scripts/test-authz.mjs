@@ -64,10 +64,10 @@ check("sales CANNOT print another user's quotation", print.status() === 404, `go
 const api = await salesPage.request.get(`${BASE}/api/quotations/${adminQuoteId}`);
 check("sales CANNOT fetch another user's quotation via API", api.status() === 404, `got ${api.status()}`);
 
-// list should not include it
+// list should not include it — API now returns { items, hasMore, page }
 const listApi = await salesPage.request.get(`${BASE}/api/quotations`);
 const listJson = await listApi.json();
-const leaked = Array.isArray(listJson) && listJson.some((q) => String(q._id) === adminQuoteId);
+const leaked = Array.isArray(listJson.items) && listJson.items.some((q) => String(q._id) === adminQuoteId);
 check("sales quotation list does NOT include another user's quotation", !leaked);
 
 // customers list should not include the admin's customer
@@ -80,7 +80,7 @@ check(
 
 const custApi = await salesPage.request.get(`${BASE}/api/customers`);
 const custJson = await custApi.json();
-const custLeaked = Array.isArray(custJson) && custJson.some((c) => c.name === "Confidential Admin Customer");
+const custLeaked = Array.isArray(custJson.items) && custJson.items.some((c) => c.name === "Confidential Admin Customer");
 check("sales customers API does NOT leak another user's customer", !custLeaked);
 
 // --- 3. Admin can still see their own ---

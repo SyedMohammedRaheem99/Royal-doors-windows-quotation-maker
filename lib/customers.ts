@@ -2,13 +2,23 @@ import { ObjectId, type Db } from "mongodb";
 import { customers as customersCollection, quotations as quotationsCollection, type StoredCustomer, type StoredQuotation } from "./collections";
 import { canAccessOwned, ownershipFilter, type Actor } from "./authz";
 import type { CustomerSnapshot } from "@/models/schemas";
+import type { Page } from "./quotations";
+
+export const CUSTOMERS_PAGE_SIZE = 25;
 
 /**
  * Finds a customer by case-insensitive exact name match and refreshes their
- * contact details, or inserts a new one. Used both by the standalone
- * customers API and when saving a quotation, so the searchable customer
- * list stays populated without a separate "create customer" step getting in
- * the salesperson's way.
+ * contact details, or inserts a new one.
+ *
+ * Scoped to `createdBy` — two different sales users quoting a same-named
+ * customer must each get their own record. Without this, the lookup used to
+ * match ANY user's customer by name alone: rep B saving a quotation for a
+ * customer named the same as one of rep A's would silently overwrite rep A's
+ * contact details and reassign that customerId to rep B's quotation, which
+ * rep A could then no longer find on their own Customers page. Same class of
+ * bug as the Phase 1 authorization gaps, just in a write path rather than a
+ * read. Admins share one pool with each other and with no one else, since an
+ * admin's quotations are visible to all sales users' ownership checks anyway.
  */
 export async function findOrCreateCustomer(
   db: Db,
@@ -16,9 +26,16 @@ export async function findOrCreateCustomer(
   createdBy: string
 ): Promise<string> {
   const customers = db.collection("customers");
-  const nameRegex = new RegExp(`^${data.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+  const name = data.name.trim();
 
-  const existing = await customers.findOne({ name: nameRegex });
+  // Exact case-insensitive equality via collation, not a regex — this is the
+  // one lookup that needs to be fast (it runs on every quotation save), and
+  // it wants exact-match semantics anyway, not pattern matching. Matches the
+  // "createdBy_name_collated" index in lib/indexes.ts.
+  const existing = await customers.findOne(
+    { name, createdBy },
+    { collation: { locale: "en", strength: 2 } }
+  );
   if (existing) {
     await customers.updateOne(
       { _id: existing._id },
@@ -36,7 +53,7 @@ export async function findOrCreateCustomer(
   }
 
   const result = await customers.insertOne({
-    name: data.name.trim(),
+    name,
     phone: data.phone,
     siteAddress: data.siteAddress,
     project: data.project,
@@ -55,8 +72,8 @@ export async function findOrCreateCustomer(
  */
 export async function listCustomersFor(
   actor: Actor,
-  opts: { search?: string; limit?: number } = {}
-): Promise<StoredCustomer[]> {
+  opts: { search?: string; page?: number; pageSize?: number } = {}
+): Promise<Page<StoredCustomer>> {
   const col = await customersCollection();
   const filter: Record<string, unknown> = { ...ownershipFilter(actor) };
 
@@ -64,11 +81,17 @@ export async function listCustomersFor(
     filter.name = new RegExp(opts.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   }
 
-  return col
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = opts.pageSize ?? CUSTOMERS_PAGE_SIZE;
+
+  const rows = await col
     .find(filter)
     .sort({ name: 1 })
-    .limit(opts.limit ?? 200)
+    .skip((page - 1) * pageSize)
+    .limit(pageSize + 1)
     .toArray();
+
+  return { items: rows.slice(0, pageSize), hasMore: rows.length > pageSize, page };
 }
 
 /**

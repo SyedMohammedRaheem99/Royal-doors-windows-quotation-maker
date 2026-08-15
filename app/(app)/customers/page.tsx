@@ -3,14 +3,20 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { actorFromSession } from "@/lib/authz";
 import { listCustomersFor } from "@/lib/customers";
+import { Pagination } from "@/components/ui/Pagination";
 
-export default async function CustomersListPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams;
+export default async function CustomersListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
+  const { q, page: pageParam } = await searchParams;
 
   const actor = actorFromSession(await auth());
   if (!actor) redirect("/login");
 
-  const customers = await listCustomersFor(actor, { search: q });
+  const page = Math.max(1, Number(pageParam) || 1);
+  const { items: customers, hasMore } = await listCustomersFor(actor, { search: q, page });
 
   return (
     <div>
@@ -59,6 +65,8 @@ export default async function CustomersListPage({ searchParams }: { searchParams
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} hasMore={hasMore} basePath="/customers" searchParams={{ q }} />
     </div>
   );
 }

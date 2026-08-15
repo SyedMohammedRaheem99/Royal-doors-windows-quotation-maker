@@ -9,7 +9,10 @@ export async function GET(request: Request) {
   const actor = actorFromSession(await auth());
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-  const customers = await listCustomersFor(actor, { search: q || undefined, limit: 50 });
-  return NextResponse.json(customers);
+  const url = new URL(request.url);
+  const q = url.searchParams.get("q")?.trim() ?? "";
+  const page = Number(url.searchParams.get("page")) || 1;
+
+  const result = await listCustomersFor(actor, { search: q || undefined, page });
+  return NextResponse.json(result);
 }

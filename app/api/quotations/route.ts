@@ -6,12 +6,13 @@ import { QuotationInputSchema } from "@/models/schemas";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   const actor = actorFromSession(await auth());
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const quotations = await listQuotationsFor(actor, { limit: 100 });
-  return NextResponse.json(quotations);
+  const page = Number(new URL(request.url).searchParams.get("page")) || 1;
+  const result = await listQuotationsFor(actor, { page });
+  return NextResponse.json(result);
 }
 
 export async function POST(request: Request) {

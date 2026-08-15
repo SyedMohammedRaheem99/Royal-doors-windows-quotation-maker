@@ -5,22 +5,25 @@ import { actorFromSession } from "@/lib/authz";
 import { listQuotationsFor } from "@/lib/quotations";
 import { withRevisionSuffix } from "@/lib/numbering";
 import { StatusBadge } from "@/components/quotations/StatusBadge";
+import { Pagination } from "@/components/ui/Pagination";
 import { QuotationStatus } from "@/models/schemas";
 
 export default async function QuotationsListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
-  const { q, status } = await searchParams;
+  const { q, status, page: pageParam } = await searchParams;
 
   const actor = actorFromSession(await auth());
   if (!actor) redirect("/login");
 
   const parsedStatus = QuotationStatus.safeParse(status);
-  const quotations = await listQuotationsFor(actor, {
+  const page = Math.max(1, Number(pageParam) || 1);
+  const { items: quotations, hasMore } = await listQuotationsFor(actor, {
     search: q,
     status: parsedStatus.success ? parsedStatus.data : undefined,
+    page,
   });
 
   return (
@@ -95,6 +98,8 @@ export default async function QuotationsListPage({
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} hasMore={hasMore} basePath="/quotations" searchParams={{ q, status }} />
     </div>
   );
 }
