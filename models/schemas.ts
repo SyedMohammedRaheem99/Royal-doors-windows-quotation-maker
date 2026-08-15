@@ -337,6 +337,21 @@ export const PaymentInputSchema = z.object({
 });
 export type PaymentInput = z.infer<typeof PaymentInputSchema>;
 
+/**
+ * A public share link. The token is the only credential, so it must be
+ * long and random; expiry limits how long a leaked link stays useful.
+ */
+export const ShareLinkSchema = z.object({
+  token: z.string().min(32),
+  createdAt: z.date(),
+  expiresAt: z.date(),
+  createdBy: z.string(),
+  /** Bumped on each view, so the salesperson can tell whether the customer opened it. */
+  viewCount: z.number().int().nonnegative().default(0),
+  lastViewedAt: z.date().optional(),
+});
+export type ShareLink = z.infer<typeof ShareLinkSchema>;
+
 export const QuotationSchema = z.object({
   _id: z.string().optional(),
   quoteNo: z.string(), // "RDW/25-26/0042"
@@ -356,6 +371,11 @@ export const QuotationSchema = z.object({
   payments: z.array(PaymentSchema).default([]),
   /** Set once this quotation has been invoiced, so it can't be invoiced twice. */
   invoiceId: z.string().optional(),
+  /**
+   * A public, unguessable link the customer can open without an account.
+   * Absent until the salesperson explicitly shares it, and revocable.
+   */
+  share: ShareLinkSchema.optional(),
   createdBy: z.string(),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),

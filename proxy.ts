@@ -29,5 +29,17 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 
 export const config = {
   // Route groups like (app) don't appear in the URL, so match the real paths.
-  matcher: ["/dashboard/:path*", "/quotations/:path*", "/customers/:path*", "/rates/:path*", "/settings/:path*"],
+  // NOTE: /share/:token is deliberately absent — it is the one public,
+  // unauthenticated route, guarded by the token itself (see lib/sharing.ts).
+  // Every new authenticated area must be added here; the pages also check
+  // individually, but relying on that alone is one forgotten check away from
+  // a leak.
+  matcher: [
+    "/dashboard/:path*",
+    "/quotations/:path*",
+    "/invoices/:path*",
+    "/customers/:path*",
+    "/rates/:path*",
+    "/settings/:path*",
+  ],
 };

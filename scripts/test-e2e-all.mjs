@@ -30,6 +30,7 @@ const suites = [
   { name: "dashboard", script: "test-dashboard.mjs", args: [adminEmail, adminPass] },
   { name: "payments", script: "test-payments.mjs", args: [adminEmail, adminPass] },
   { name: "tax invoices", script: "test-invoices.mjs", args: [adminEmail, adminPass] },
+  { name: "public sharing", script: "test-sharing.mjs", args: [adminEmail, adminPass] },
   { name: "full user journey", script: "e2e-test.mjs", args: [SCRATCH] },
 ];
 

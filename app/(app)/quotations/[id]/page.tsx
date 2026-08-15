@@ -6,9 +6,12 @@ import { actorFromSession } from "@/lib/authz";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering";
 import { addPayment, duplicateQuotation, loadQuotationFor, removePayment, setQuotationStatus } from "@/lib/quotations";
+import { createShareLink, revokeShareLink } from "@/lib/sharing";
+import { settings as settingsCollection } from "@/lib/collections";
 import { StatusBadge } from "@/components/quotations/StatusBadge";
 import { StatusActions } from "@/components/quotations/StatusActions";
 import { PaymentsPanel } from "@/components/quotations/PaymentsPanel";
+import { SharePanel } from "@/components/quotations/SharePanel";
 import { PaymentInputSchema, type PaymentInput, type QuotationStatus } from "@/models/schemas";
 
 // There is deliberately no loading.tsx on this segment OR its parent
@@ -31,6 +34,10 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   const loaded = await loadQuotationFor(id, actor);
   if (!loaded.ok) notFound();
   const quotation = loaded.data;
+
+  const settingsCol = await settingsCollection();
+  const settingsDoc = await settingsCol.findOne({});
+  const companyName = settingsDoc?.companyName ?? "Royal Doors and Windows";
 
   async function duplicateAction() {
     "use server";
@@ -78,6 +85,30 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
     if (!actor2) return { error: "Not authenticated." };
 
     const result = await removePayment(id, paymentId, actor2);
+    if (!result.ok) return { error: result.error };
+
+    revalidatePath(`/quotations/${id}`);
+    return { ok: true as const };
+  }
+
+  async function createShareAction() {
+    "use server";
+    const actor2 = actorFromSession(await auth());
+    if (!actor2) return { error: "Not authenticated." };
+
+    const result = await createShareLink(id, actor2);
+    if (!result.ok) return { error: result.error };
+
+    revalidatePath(`/quotations/${id}`);
+    return { token: result.data.token };
+  }
+
+  async function revokeShareAction() {
+    "use server";
+    const actor2 = actorFromSession(await auth());
+    if (!actor2) return { error: "Not authenticated." };
+
+    const result = await revokeShareLink(id, actor2);
     if (!result.ok) return { error: result.error };
 
     revalidatePath(`/quotations/${id}`);
@@ -195,6 +226,30 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
       <p className="mt-2 text-right text-xs italic text-neutral-500">{amountInWords(quotation.totals.grandTotal)}</p>
 
       <div className="mt-8">
+        <SharePanel
+          share={
+            quotation.share
+              ? {
+                  token: quotation.share.token,
+                  expiresAt: new Date(quotation.share.expiresAt).toISOString(),
+                  viewCount: quotation.share.viewCount ?? 0,
+                  lastViewedAt: quotation.share.lastViewedAt
+                    ? new Date(quotation.share.lastViewedAt).toISOString()
+                    : undefined,
+                }
+              : null
+          }
+          customerName={quotation.customer.name}
+          customerPhone={quotation.customer.phone ?? ""}
+          quoteNo={quotation.quoteNo}
+          grandTotal={quotation.totals.grandTotal}
+          companyName={companyName}
+          onCreate={createShareAction}
+          onRevoke={revokeShareAction}
+        />
+      </div>
+
+      <div className="mt-6">
         <PaymentsPanel
           payments={JSON.parse(JSON.stringify(quotation.payments ?? []))}
           grandTotal={quotation.totals.grandTotal}
