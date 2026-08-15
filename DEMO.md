@@ -27,10 +27,14 @@ Then open **http://localhost:3000**
 
 ## Login
 
-- **Email:** `test@royaldoorsandwindows.com`
-- **Password:** `Test@1234`
+Create the login yourself with the seed command — this repo is public, so no
+working credential is committed to it:
 
-Change it any time by re-running the seed with a different `--email` / `--password`.
+```bash
+npm run seed -- --email you@example.com --password "<pick-one>" --name "Your Name"
+```
+
+Re-run it any time with different values to add another user.
 
 ## Suggested 5-minute walkthrough
 
@@ -77,5 +81,5 @@ Wipes quotations and customers only — keeps the rate card, settings and login.
 - **"MONGODB_URI is not set":** Terminal 1 isn't running — start the database first.
 - **Login fails:** re-seed the user:
   ```bash
-  npm run seed -- --email test@royaldoorsandwindows.com --password "Test@1234" --name "Test Admin"
+  npm run seed -- --email you@example.com --password "<pick-one>" --name "Your Name"
   ```
