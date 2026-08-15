@@ -103,4 +103,18 @@ export const SETTINGS_SEED: Omit<Settings, "_id"> = {
     financialYearLabel: currentIndianFinancialYearLabel(),
     counter: 0,
   },
+  invoiceNumbering: {
+    prefix: "INV",
+    financialYearLabel: currentIndianFinancialYearLabel(),
+    counter: 0,
+  },
+  // Place of supply for GST. Karnataka is state code 29 — the reference
+  // invoices' buyer blocks used 29, though the seller block on two of them
+  // incorrectly said 77.
+  stateName: "Karnataka",
+  stateCode: "29",
+  // HSN for plastic builders' ware, as used on the reference tax invoices.
+  defaultHsnSac: "3917",
+  invoiceDeclaration:
+    "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.",
 };

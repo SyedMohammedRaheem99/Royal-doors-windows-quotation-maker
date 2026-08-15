@@ -186,6 +186,29 @@ export const SettingsSchema = z.object({
     financialYearLabel: z.string(), // "25-26"
     counter: z.number().int().nonnegative().default(0),
   }),
+  /**
+   * Invoices carry their OWN sequence, separate from quotations. The
+   * reference Tally invoices used a plain 3-digit series ("001", "005",
+   * "006") independent of any quote number, and GST rules expect an
+   * invoice series that is continuous and doesn't skip.
+   */
+  invoiceNumbering: z
+    .object({
+      prefix: z.string().default("INV"),
+      financialYearLabel: z.string(),
+      counter: z.number().int().nonnegative().default(0),
+    })
+    .optional(),
+  /** State code for GST place-of-supply. Karnataka is 29. */
+  stateName: z.string().default("Karnataka"),
+  stateCode: z.string().default("29"),
+  /** HSN/SAC printed on invoices — 3917 on the reference invoices (plastic builders' ware). */
+  defaultHsnSac: z.string().default("3917"),
+  invoiceDeclaration: z
+    .string()
+    .default(
+      "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct."
+    ),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
@@ -331,8 +354,86 @@ export const QuotationSchema = z.object({
   terms: QuotationTermsSchema,
   statusHistory: z.array(StatusEventSchema).default([]),
   payments: z.array(PaymentSchema).default([]),
+  /** Set once this quotation has been invoiced, so it can't be invoiced twice. */
+  invoiceId: z.string().optional(),
   createdBy: z.string(),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),
 });
 export type Quotation = z.infer<typeof QuotationSchema>;
+
+/** ---------- tax invoices ---------- */
+
+/**
+ * A GST tax invoice, generated from an approved quotation. Structurally
+ * distinct from a quotation, matching the Tally-produced invoices in the
+ * reference data: a buyer block with GSTIN and state code, HSN/SAC, an
+ * HSN summary table, amount in words, and a declaration.
+ *
+ * Unlike the reference invoices — which collapsed everything into a single
+ * "uPVC windows" line — this keeps the real line items, because a customer
+ * who received an itemised quotation should get an itemised invoice.
+ */
+export const InvoiceLineSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  hsnSac: z.string(),
+  quantity: z.number().nonnegative(),
+  unit: z.string().default("sqft"),
+  rate: z.number().nonnegative(),
+  amount: z.number().nonnegative(),
+});
+export type InvoiceLine = z.infer<typeof InvoiceLineSchema>;
+
+export const BuyerSchema = z.object({
+  name: z.string(),
+  addressLines: z.array(z.string()).default([]),
+  gstin: z.string().default(""),
+  stateName: z.string().default(""),
+  stateCode: z.string().default(""),
+});
+export type Buyer = z.infer<typeof BuyerSchema>;
+
+export const InvoiceTotalsSchema = z.object({
+  taxableValue: z.number(),
+  cgst: z.number(),
+  sgst: z.number(),
+  igst: z.number().default(0),
+  transportation: z.number().default(0),
+  grandTotal: z.number(),
+  roundOff: z.number().default(0),
+});
+export type InvoiceTotals = z.infer<typeof InvoiceTotalsSchema>;
+
+export const InvoiceSchema = z.object({
+  _id: z.string().optional(),
+  invoiceNo: z.string(), // "INV/25-26/001"
+  date: z.date(),
+  /** The quotation this was raised from — invoices are never created standalone. */
+  quotationId: z.string(),
+  quoteNo: z.string(),
+  buyer: BuyerSchema,
+  lines: z.array(InvoiceLineSchema).default([]),
+  gstRate: GstRatePercent,
+  /**
+   * Intra-state (CGST+SGST) vs inter-state (IGST). Determined by comparing
+   * the buyer's state code with the seller's — Karnataka to Karnataka is
+   * intra-state, which is every invoice in the reference data.
+   */
+  supplyType: z.enum(["intra_state", "inter_state"]).default("intra_state"),
+  totals: InvoiceTotalsSchema,
+  vehicleNo: z.string().default(""),
+  declaration: z.string().default(""),
+  createdBy: z.string(),
+  createdAt: z.date().optional(),
+  updatedAt: z.date().optional(),
+});
+export type Invoice = z.infer<typeof InvoiceSchema>;
+
+/** What the user may adjust when raising an invoice from a quotation. */
+export const InvoiceInputSchema = z.object({
+  buyer: BuyerSchema,
+  vehicleNo: z.string().max(30).default(""),
+  hsnSac: z.string().min(1, "HSN/SAC is required on a tax invoice."),
+});
+export type InvoiceInput = z.infer<typeof InvoiceInputSchema>;

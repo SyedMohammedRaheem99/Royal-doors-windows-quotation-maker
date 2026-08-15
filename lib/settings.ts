@@ -8,6 +8,10 @@ export interface EditableSettingsFields {
   email: string;
   website: string;
   gstin: string;
+  /** Place of supply — decides CGST+SGST vs IGST on a tax invoice. */
+  stateName: string;
+  stateCode: string;
+  defaultHsnSac: string;
   bank: {
     accountName: string;
     bankName: string;

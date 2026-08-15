@@ -23,20 +23,33 @@ async function main() {
   // module is TypeScript and this script runs standalone via tsx, so a
   // direct import works, but keeping the index specs co-located in one file
   // and just calling it is simplest.
-  const { ensureIndexes, QUOTATION_INDEXES, CUSTOMER_INDEXES, USER_INDEXES, RATE_CARD_INDEXES } = await import(
-    "../lib/indexes.ts"
-  );
+  const { ensureIndexes, QUOTATION_INDEXES, CUSTOMER_INDEXES, INVOICE_INDEXES, USER_INDEXES, RATE_CARD_INDEXES } =
+    await import("../lib/indexes.ts");
 
   await ensureIndexes(db);
 
   const total =
-    QUOTATION_INDEXES.length + CUSTOMER_INDEXES.length + USER_INDEXES.length + RATE_CARD_INDEXES.length;
-  console.log(`Ensured ${total} indexes across quotations, customers, users, rateCard.`);
+    QUOTATION_INDEXES.length +
+    CUSTOMER_INDEXES.length +
+    INVOICE_INDEXES.length +
+    USER_INDEXES.length +
+    RATE_CARD_INDEXES.length;
+  console.log(`Ensured ${total} indexes across quotations, customers, invoices, users, rateCard.`);
 
-  for (const name of ["quotations", "customers", "users", "rateCard"]) {
+  for (const name of ["quotations", "customers", "invoices", "users", "rateCard"]) {
     const indexes = await db.collection(name).listIndexes().toArray();
     console.log(`  ${name}: ${indexes.map((i) => i.name).join(", ")}`);
   }
+
+  // Settings fields added after this deployment was first seeded — see
+  // lib/settingsMigration.ts for why the seed script alone isn't enough.
+  const { backfillSettings } = await import("../lib/settingsMigration.ts");
+  const backfilled = await backfillSettings(db);
+  console.log(
+    backfilled.length > 0
+      ? `Backfilled ${backfilled.length} settings field(s): ${backfilled.join(", ")}`
+      : "Settings are up to date — nothing to backfill."
+  );
 
   await client.close();
   console.log("Migration complete.");

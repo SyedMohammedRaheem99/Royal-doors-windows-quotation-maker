@@ -81,6 +81,21 @@ export function SettingsForm({
           <div>
             <label className={labelClass()}>Company GSTIN</label>
             <input className={inputClass()} value={fields.gstin} onChange={(e) => setFields({ ...fields, gstin: e.target.value })} />
+            <p className="mt-1 text-xs text-neutral-400">Required before a tax invoice can be raised.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2">
+              <label className={labelClass()}>State</label>
+              <input className={inputClass()} value={fields.stateName} onChange={(e) => setFields({ ...fields, stateName: e.target.value })} />
+            </div>
+            <div>
+              <label className={labelClass()}>Code</label>
+              <input className={inputClass()} value={fields.stateCode} onChange={(e) => setFields({ ...fields, stateCode: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass()}>Default HSN / SAC</label>
+            <input className={inputClass()} value={fields.defaultHsnSac} onChange={(e) => setFields({ ...fields, defaultHsnSac: e.target.value })} />
           </div>
         </div>
       </div>

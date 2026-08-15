@@ -110,6 +110,25 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               </button>
             </form>
           </div>
+          {/* Invoicing is only meaningful once approved; once invoiced, the
+              action becomes a link to the invoice rather than a second raise. */}
+          {quotation.invoiceId ? (
+            <Link
+              href={`/invoices/${quotation.invoiceId}`}
+              className="rounded border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100"
+            >
+              View tax invoice →
+            </Link>
+          ) : (
+            quotation.status === "approved" && (
+              <Link
+                href={`/invoices/new?from=${id}`}
+                className="rounded border border-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#0f3d2e] hover:bg-neutral-50"
+              >
+                Raise tax invoice
+              </Link>
+            )
+          )}
           <StatusActions status={quotation.status} onChange={statusAction} />
         </div>
       </div>

@@ -64,6 +64,27 @@ export const CUSTOMER_INDEXES: IndexDescription[] = [
   },
 ];
 
+export const INVOICE_INDEXES: IndexDescription[] = [
+  {
+    // GST requires a continuous, non-duplicated invoice series — this is a
+    // legal correctness constraint, not just a performance index.
+    key: { invoiceNo: 1 },
+    name: "invoiceNo_unique",
+    unique: true,
+  },
+  {
+    // One invoice per quotation. The quotation's invoiceId is the primary
+    // guard; this backstops it against a race between two concurrent raises.
+    key: { quotationId: 1 },
+    name: "quotationId_unique",
+    unique: true,
+  },
+  {
+    key: { createdBy: 1, createdAt: -1 },
+    name: "createdBy_createdAt",
+  },
+];
+
 export const USER_INDEXES: IndexDescription[] = [
   {
     // Auth looks up by email on every login; must also be unique — two users
@@ -87,6 +108,7 @@ export const RATE_CARD_INDEXES: IndexDescription[] = [
 export async function ensureIndexes(db: Db): Promise<void> {
   await db.collection("quotations").createIndexes(QUOTATION_INDEXES);
   await db.collection("customers").createIndexes(CUSTOMER_INDEXES);
+  await db.collection("invoices").createIndexes(INVOICE_INDEXES);
   await db.collection("users").createIndexes(USER_INDEXES);
   await db.collection("rateCard").createIndexes(RATE_CARD_INDEXES);
 }

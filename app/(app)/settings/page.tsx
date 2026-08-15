@@ -27,6 +27,9 @@ export default async function SettingsPage() {
       email: settingsDoc.email,
       website: settingsDoc.website,
       gstin: settingsDoc.gstin ?? "",
+      stateName: settingsDoc.stateName ?? "Karnataka",
+      stateCode: settingsDoc.stateCode ?? "29",
+      defaultHsnSac: settingsDoc.defaultHsnSac ?? "3917",
       bank: settingsDoc.bank,
     })
   );

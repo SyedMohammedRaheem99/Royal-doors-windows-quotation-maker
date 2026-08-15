@@ -10,6 +10,7 @@ async function signOutAction() {
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/quotations", label: "Quotations" },
+  { href: "/invoices", label: "Invoices" },
   { href: "/customers", label: "Customers" },
 ];
 
