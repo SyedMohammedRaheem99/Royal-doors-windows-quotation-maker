@@ -31,9 +31,14 @@ async function main() {
     throw new Error("MONGODB_URI is not set. Copy .env.local.example to .env.local first.");
   }
 
-  const { email, password, name } = parseArgs();
+  const { email, password, name, role = "admin" } = parseArgs();
   if (!email || !password || !name) {
-    throw new Error('Usage: npm run seed -- --email you@example.com --password "changeme" --name "Your Name"');
+    throw new Error(
+      'Usage: npm run seed -- --email you@example.com --password "changeme" --name "Your Name" [--role admin|sales]'
+    );
+  }
+  if (role !== "admin" && role !== "sales") {
+    throw new Error(`--role must be "admin" or "sales", got "${role}".`);
   }
 
   const client = new MongoClient(uri);
@@ -58,15 +63,15 @@ async function main() {
     console.log("Settings document created.");
   }
 
-  // --- admin user ---
+  // --- user ---
   const users = db.collection("users");
   const existingUser = await users.findOne({ email });
   if (existingUser) {
     console.log(`User ${email} already exists — skipping.`);
   } else {
     const passwordHash = await bcrypt.hash(password, 10);
-    await users.insertOne({ name, email, passwordHash, role: "admin", createdAt: new Date() });
-    console.log(`Admin user created: ${email}`);
+    await users.insertOne({ name, email, passwordHash, role, createdAt: new Date() });
+    console.log(`${role === "admin" ? "Admin" : "Sales"} user created: ${email}`);
   }
 
   await client.close();

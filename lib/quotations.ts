@@ -1,9 +1,21 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "./db";
+import { quotations as quotationsCollection, type StoredQuotation } from "./collections";
+import { canAccessOwned, ownershipFilter, type Actor } from "./authz";
 import { findOrCreateCustomer } from "./customers";
 import { nextQuoteNo } from "./numbering";
 import { computeItem, computeTotals, SURCHARGES } from "./pricing";
-import type { Quotation, QuotationInput } from "@/models/schemas";
+import {
+  STATUS_TRANSITIONS,
+  type QuotationInput,
+  type QuotationStatus,
+  type StatusEvent,
+} from "@/models/schemas";
+
+export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+
+const ok = <T>(data: T): Result<T> => ({ ok: true, data });
+const fail = <T = never>(error: string): Result<T> => ({ ok: false, error });
 
 /** Shared by create/update/duplicate — never trust a client-sent amount, always derive it from billed dims + rate. */
 function computeQuotationPricing(input: QuotationInput) {
@@ -27,6 +39,51 @@ function computeQuotationPricing(input: QuotationInput) {
   return { computedItems, totals };
 }
 
+/**
+ * Loads a quotation and checks the actor is allowed to see it. Every read and
+ * every mutation goes through this — a caller can't accidentally skip the
+ * ownership check, because it can't get the document without passing one.
+ * Returns the same "not found" error for missing and forbidden so a sales user
+ * can't probe for the existence of other reps' quotations.
+ */
+export async function loadQuotationFor(id: string, actor: Actor): Promise<Result<StoredQuotation>> {
+  if (!ObjectId.isValid(id)) return fail("Quotation not found.");
+
+  const col = await quotationsCollection();
+  const doc = await col.findOne({ _id: new ObjectId(id) });
+  if (!doc) return fail("Quotation not found.");
+  if (!canAccessOwned(actor, doc.createdBy)) return fail("Quotation not found.");
+
+  return ok(doc);
+}
+
+/** Unscoped read. Only for contexts that have already authorized the caller. */
+export async function getQuotationById(id: string): Promise<StoredQuotation | null> {
+  if (!ObjectId.isValid(id)) return null;
+  const col = await quotationsCollection();
+  return col.findOne({ _id: new ObjectId(id) });
+}
+
+export async function listQuotationsFor(
+  actor: Actor,
+  opts: { search?: string; status?: QuotationStatus; limit?: number } = {}
+): Promise<StoredQuotation[]> {
+  const col = await quotationsCollection();
+  const filter: Record<string, unknown> = { ...ownershipFilter(actor) };
+
+  if (opts.status) filter.status = opts.status;
+  if (opts.search) {
+    const re = new RegExp(opts.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ quoteNo: re }, { "customer.name": re }, { "customer.project": re }];
+  }
+
+  return col
+    .find(filter)
+    .sort({ createdAt: -1 })
+    .limit(opts.limit ?? 200)
+    .toArray();
+}
+
 /** The single place a NEW quotation is ever created — see computeQuotationPricing for the anti-stale-GST discipline. */
 export async function createQuotation(input: QuotationInput, userId: string) {
   const { computedItems, totals } = computeQuotationPricing(input);
@@ -36,10 +93,11 @@ export async function createQuotation(input: QuotationInput, userId: string) {
   const quoteNo = await nextQuoteNo();
 
   const now = new Date();
-  const doc = {
+  const col = await quotationsCollection();
+  const result = await col.insertOne({
     quoteNo,
     revision: 0,
-    status: "draft" as const,
+    status: "draft",
     date: now,
     customer: input.customer,
     customerId,
@@ -48,19 +106,44 @@ export async function createQuotation(input: QuotationInput, userId: string) {
     gst: input.gst,
     totals,
     terms: input.terms,
+    statusHistory: [],
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
-  };
+  });
 
-  const result = await db.collection("quotations").insertOne(doc);
   return { id: result.insertedId.toString(), quoteNo };
 }
 
-export async function getQuotationById(id: string) {
-  if (!ObjectId.isValid(id)) return null;
-  const db = await getDb();
-  return db.collection("quotations").findOne({ _id: new ObjectId(id) });
+/**
+ * Moves a quotation along its status workflow, recording who did it and when.
+ * Rejects transitions that aren't in STATUS_TRANSITIONS rather than trusting
+ * the caller — the buttons only offer valid ones, but a stale page or a direct
+ * API call shouldn't be able to put a quotation into a nonsense state.
+ */
+export async function setQuotationStatus(
+  id: string,
+  to: QuotationStatus,
+  actor: Actor
+): Promise<Result<null>> {
+  const loaded = await loadQuotationFor(id, actor);
+  if (!loaded.ok) return loaded;
+
+  const from = loaded.data.status;
+  if (from === to) return ok(null);
+
+  if (!STATUS_TRANSITIONS[from]?.includes(to)) {
+    return fail(`Cannot move a ${from} quotation to ${to}.`);
+  }
+
+  const event: StatusEvent = { from, to, at: new Date(), by: actor.id };
+  const col = await quotationsCollection();
+  await col.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { status: to, updatedAt: new Date() }, $push: { statusHistory: event } }
+  );
+
+  return ok(null);
 }
 
 /**
@@ -71,37 +154,48 @@ export async function getQuotationById(id: string) {
  * withRevisionSuffix at display time) and status resets to draft, since a
  * changed quote needs to go out again before it can be approved.
  */
-export async function updateQuotation(id: string, input: QuotationInput, userId: string) {
-  const db = await getDb();
-  const existing = await db.collection("quotations").findOne({ _id: new ObjectId(id) });
-  if (!existing) throw new Error("Quotation not found");
+export async function updateQuotation(
+  id: string,
+  input: QuotationInput,
+  actor: Actor
+): Promise<Result<{ id: string; quoteNo: string }>> {
+  const loaded = await loadQuotationFor(id, actor);
+  if (!loaded.ok) return loaded;
+  const existing = loaded.data;
 
   const { computedItems, totals } = computeQuotationPricing(input);
-  const customerId = await findOrCreateCustomer(db, input.customer, userId);
+  const db = await getDb();
+  const customerId = await findOrCreateCustomer(db, input.customer, actor.id);
 
   const wasSent = existing.status !== "draft";
-  const revision = wasSent ? (existing.revision ?? 0) + 1 : (existing.revision ?? 0);
-  const status = wasSent ? "draft" : existing.status;
+  const revision = wasSent ? existing.revision + 1 : existing.revision;
+  const status: QuotationStatus = wasSent ? "draft" : existing.status;
+  const now = new Date();
 
-  await db.collection("quotations").updateOne(
-    { _id: new ObjectId(id) },
-    {
-      $set: {
-        customer: input.customer,
-        customerId,
-        items: computedItems,
-        transportation: input.transportation,
-        gst: input.gst,
-        totals,
-        terms: input.terms,
-        revision,
-        status,
-        updatedAt: new Date(),
-      },
-    }
-  );
+  const $set = {
+    customer: input.customer,
+    customerId,
+    items: computedItems,
+    transportation: input.transportation,
+    gst: input.gst,
+    totals,
+    terms: input.terms,
+    revision,
+    status,
+    updatedAt: now,
+  };
 
-  return { id, quoteNo: existing.quoteNo as string };
+  const col = await quotationsCollection();
+  if (wasSent) {
+    // Editing an already-sent quotation is a re-quote: record the automatic
+    // drop back to draft so the history explains the revision bump.
+    const event: StatusEvent = { from: existing.status, to: "draft", at: now, by: actor.id };
+    await col.updateOne({ _id: new ObjectId(id) }, { $set, $push: { statusHistory: event } });
+  } else {
+    await col.updateOne({ _id: new ObjectId(id) }, { $set });
+  }
+
+  return ok({ id, quoteNo: existing.quoteNo });
 }
 
 /**
@@ -110,13 +204,17 @@ export async function updateQuotation(id: string, input: QuotationInput, userId:
  * data: same measurements, different rate tier, but two separate quotes a
  * customer can compare, not two versions of one.
  */
-export async function duplicateQuotation(id: string, userId: string) {
-  const source = await getQuotationById(id);
-  if (!source) throw new Error("Quotation not found");
+export async function duplicateQuotation(
+  id: string,
+  actor: Actor
+): Promise<Result<{ id: string; quoteNo: string }>> {
+  const loaded = await loadQuotationFor(id, actor);
+  if (!loaded.ok) return loaded;
+  const source = loaded.data;
 
   const input: QuotationInput = {
     customer: source.customer,
-    items: source.items.map((item: Quotation["items"][number]) => ({
+    items: source.items.map((item) => ({
       id: crypto.randomUUID(),
       productType: item.productType,
       description: item.description,
@@ -136,5 +234,5 @@ export async function duplicateQuotation(id: string, userId: string) {
     terms: source.terms,
   };
 
-  return createQuotation(input, userId);
+  return ok(await createQuotation(input, actor.id));
 }

@@ -1,24 +1,22 @@
-import { ObjectId } from "mongodb";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getDb } from "@/lib/db";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { actorFromSession } from "@/lib/authz";
+import { loadCustomerWithHistory } from "@/lib/customers";
 import { withRevisionSuffix } from "@/lib/numbering";
+import { StatusBadge } from "@/components/quotations/StatusBadge";
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ObjectId.isValid(id)) notFound();
 
-  const db = await getDb();
-  const customer = await db.collection("customers").findOne({ _id: new ObjectId(id) });
-  if (!customer) notFound();
+  const actor = actorFromSession(await auth());
+  if (!actor) redirect("/login");
 
-  const quotations = await db
-    .collection("quotations")
-    .find({ customerId: id })
-    .sort({ createdAt: -1 })
-    .toArray();
+  const loaded = await loadCustomerWithHistory(id, actor);
+  if (!loaded) notFound();
+  const { customer, quotations } = loaded;
 
-  const lifetimeValue = quotations
+  const approvedValue = quotations
     .filter((q) => q.status === "approved")
     .reduce((sum, q) => sum + q.totals.grandTotal, 0);
 
@@ -47,7 +45,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </div>
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <p className="text-xs text-neutral-400">Approved value</p>
-          <p className="text-lg font-semibold text-[#0f3d2e]">₹{lifetimeValue.toLocaleString("en-IN")}</p>
+          <p className="text-lg font-semibold text-[#0f3d2e]">₹{approvedValue.toLocaleString("en-IN")}</p>
         </div>
       </div>
 
@@ -73,7 +71,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 </td>
                 <td className="px-4 py-2 text-neutral-500">{quotation.customer.project || "—"}</td>
                 <td className="px-4 py-2 text-neutral-500">{new Date(quotation.date).toLocaleDateString("en-IN")}</td>
-                <td className="px-4 py-2 capitalize text-neutral-600">{quotation.status}</td>
+                <td className="px-4 py-2">
+                  <StatusBadge status={quotation.status} />
+                </td>
                 <td className="px-4 py-2 text-right font-medium">₹{quotation.totals.grandTotal.toLocaleString("en-IN")}</td>
               </tr>
             ))}

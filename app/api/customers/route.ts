@@ -1,20 +1,15 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getDb } from "@/lib/db";
+import { actorFromSession } from "@/lib/authz";
+import { listCustomersFor } from "@/lib/customers";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const actor = actorFromSession(await auth());
+  if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-  const db = await getDb();
-
-  const filter = q
-    ? { name: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }
-    : {};
-
-  const customers = await db.collection("customers").find(filter).sort({ name: 1 }).limit(50).toArray();
+  const customers = await listCustomersFor(actor, { search: q || undefined, limit: 50 });
   return NextResponse.json(customers);
 }

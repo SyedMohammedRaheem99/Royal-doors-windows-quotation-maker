@@ -1,54 +1,75 @@
-import { ObjectId } from "mongodb";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { getDb } from "@/lib/db";
+import { actorFromSession } from "@/lib/authz";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering";
-import { duplicateQuotation } from "@/lib/quotations";
+import { duplicateQuotation, loadQuotationFor, setQuotationStatus } from "@/lib/quotations";
+import { StatusBadge } from "@/components/quotations/StatusBadge";
+import { StatusActions } from "@/components/quotations/StatusActions";
+import type { QuotationStatus } from "@/models/schemas";
 
 export default async function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ObjectId.isValid(id)) notFound();
 
-  const session = await auth();
-  const db = await getDb();
-  const quotation = await db.collection("quotations").findOne({ _id: new ObjectId(id) });
-  if (!quotation) notFound();
-  if (session?.user.role !== "admin" && quotation.createdBy !== session?.user.id) notFound();
+  const actor = actorFromSession(await auth());
+  if (!actor) notFound();
+
+  const loaded = await loadQuotationFor(id, actor);
+  if (!loaded.ok) notFound();
+  const quotation = loaded.data;
 
   async function duplicateAction() {
     "use server";
-    const session2 = await auth();
-    if (!session2?.user) return;
-    const result = await duplicateQuotation(id, session2.user.id);
-    redirect(`/quotations/${result.id}/edit`);
+    const actor2 = actorFromSession(await auth());
+    if (!actor2) return;
+    const result = await duplicateQuotation(id, actor2);
+    if (!result.ok) return;
+    redirect(`/quotations/${result.data.id}/edit`);
+  }
+
+  async function statusAction(to: QuotationStatus) {
+    "use server";
+    const actor2 = actorFromSession(await auth());
+    if (!actor2) return { error: "Not authenticated." };
+
+    const result = await setQuotationStatus(id, to, actor2);
+    if (!result.ok) return { error: result.error };
+
+    revalidatePath(`/quotations/${id}`);
+    revalidatePath("/quotations");
+    revalidatePath("/dashboard");
+    return { ok: true as const };
   }
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-6 flex items-baseline justify-between">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-neutral-900">{withRevisionSuffix(quotation.quoteNo, quotation.revision)}</h1>
-          <p className="text-sm text-neutral-500">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-neutral-900">{withRevisionSuffix(quotation.quoteNo, quotation.revision)}</h1>
+            <StatusBadge status={quotation.status} />
+          </div>
+          <p className="mt-0.5 text-sm text-neutral-500">
             {quotation.customer.name} — {quotation.customer.project || quotation.customer.siteAddress}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium capitalize text-neutral-600">
-            {quotation.status}
-          </span>
-          <Link href={`/quotations/${id}/print`} target="_blank" className="rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
-            Print
-          </Link>
-          <Link href={`/quotations/${id}/edit`} className="rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
-            Edit
-          </Link>
-          <form action={duplicateAction}>
-            <button type="submit" className="rounded bg-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#c9a227] hover:bg-[#0c3125]">
-              Duplicate
-            </button>
-          </form>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <Link href={`/quotations/${id}/print`} target="_blank" className="rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
+              Print
+            </Link>
+            <Link href={`/quotations/${id}/edit`} className="rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
+              Edit
+            </Link>
+            <form action={duplicateAction}>
+              <button type="submit" className="rounded bg-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#c9a227] hover:bg-[#0c3125]">
+                Duplicate
+              </button>
+            </form>
+          </div>
+          <StatusActions status={quotation.status} onChange={statusAction} />
         </div>
       </div>
 
@@ -66,8 +87,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             </tr>
           </thead>
           <tbody>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {quotation.items.map((item: any, i: number) => (
+            {quotation.items.map((item, i) => (
               <tr key={item.id} className="border-t border-neutral-100">
                 <td className="px-4 py-2 text-neutral-400">{i + 1}</td>
                 <td className="px-4 py-2">{item.description}</td>

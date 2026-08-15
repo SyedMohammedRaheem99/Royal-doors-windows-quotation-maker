@@ -1,12 +1,16 @@
 import Link from "next/link";
-import { getDb } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { actorFromSession } from "@/lib/authz";
+import { listCustomersFor } from "@/lib/customers";
 
 export default async function CustomersListPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
-  const db = await getDb();
 
-  const filter = q ? { name: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") } : {};
-  const customers = await db.collection("customers").find(filter).sort({ name: 1 }).limit(200).toArray();
+  const actor = actorFromSession(await auth());
+  if (!actor) redirect("/login");
+
+  const customers = await listCustomersFor(actor, { search: q });
 
   return (
     <div>

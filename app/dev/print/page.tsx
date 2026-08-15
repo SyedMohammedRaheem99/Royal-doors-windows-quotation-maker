@@ -87,6 +87,7 @@ const quotation: Quotation = {
     validityDays: 5,
     extraNotes: [],
   },
+  statusHistory: [],
   createdBy: "dev",
 };
 

@@ -1,29 +1,28 @@
-import { ObjectId } from "mongodb";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { getDb } from "@/lib/db";
+import { actorFromSession } from "@/lib/authz";
+import { settings as settingsCollection } from "@/lib/collections";
+import { loadQuotationFor } from "@/lib/quotations";
 import { QuotationDocument } from "@/components/print/QuotationDocument";
 import type { Quotation, Settings } from "@/models/schemas";
 
 export default async function PrintQuotationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!ObjectId.isValid(id)) notFound();
 
-  const session = await auth();
-  if (!session?.user) notFound(); // proxy.ts already protects /quotations/:path*; this is defense-in-depth
+  // proxy.ts already protects /quotations/:path*; loadQuotationFor additionally
+  // enforces ownership, so a sales user can't print another rep's quotation.
+  const actor = actorFromSession(await auth());
+  if (!actor) notFound();
 
-  const db = await getDb();
-  const [quotationDoc, settingsDoc] = await Promise.all([
-    db.collection("quotations").findOne({ _id: new ObjectId(id) }),
-    db.collection("settings").findOne({}),
-  ]);
+  const [loaded, settingsCol] = await Promise.all([loadQuotationFor(id, actor), settingsCollection()]);
+  if (!loaded.ok) notFound();
 
-  if (!quotationDoc || !settingsDoc) notFound();
-  if (session.user.role !== "admin" && quotationDoc.createdBy !== session.user.id) notFound();
+  const settingsDoc = await settingsCol.findOne({});
+  if (!settingsDoc) notFound();
 
   // JSON round-trip strips Mongo's ObjectId/Date instances into plain
   // strings before crossing into the (partly client) component tree below.
-  const quotation = JSON.parse(JSON.stringify(quotationDoc)) as Quotation;
+  const quotation = JSON.parse(JSON.stringify(loaded.data)) as Quotation;
   const settings = JSON.parse(JSON.stringify(settingsDoc)) as Settings;
 
   return <QuotationDocument quotation={quotation} settings={settings} />;

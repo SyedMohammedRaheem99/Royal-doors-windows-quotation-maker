@@ -1,22 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getDb } from "@/lib/db";
+import { actorFromSession } from "@/lib/authz";
+import { listQuotationsFor } from "@/lib/quotations";
 import { withRevisionSuffix } from "@/lib/numbering";
-
-const STATUS_STYLES: Record<string, string> = {
-  draft: "bg-neutral-100 text-neutral-600",
-  sent: "bg-blue-50 text-blue-700",
-  approved: "bg-green-50 text-green-700",
-  lost: "bg-red-50 text-red-700",
-};
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[status] ?? STATUS_STYLES.draft}`}>
-      {status}
-    </span>
-  );
-}
+import { StatusBadge } from "@/components/quotations/StatusBadge";
+import { QuotationStatus } from "@/models/schemas";
 
 export default async function QuotationsListPage({
   searchParams,
@@ -24,17 +13,15 @@ export default async function QuotationsListPage({
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
   const { q, status } = await searchParams;
-  const session = await auth();
-  const db = await getDb();
 
-  const filter: Record<string, unknown> = session?.user.role === "admin" ? {} : { createdBy: session?.user.id };
-  if (status) filter.status = status;
-  if (q) {
-    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    filter.$or = [{ quoteNo: re }, { "customer.name": re }, { "customer.project": re }];
-  }
+  const actor = actorFromSession(await auth());
+  if (!actor) redirect("/login");
 
-  const quotations = await db.collection("quotations").find(filter).sort({ createdAt: -1 }).limit(200).toArray();
+  const parsedStatus = QuotationStatus.safeParse(status);
+  const quotations = await listQuotationsFor(actor, {
+    search: q,
+    status: parsedStatus.success ? parsedStatus.data : undefined,
+  });
 
   return (
     <div>

@@ -49,6 +49,27 @@ export type UserRole = z.infer<typeof UserRole>;
 export const QuotationStatus = z.enum(["draft", "sent", "approved", "lost"]);
 export type QuotationStatus = z.infer<typeof QuotationStatus>;
 
+/**
+ * Which status changes are allowed from each state. A quotation can be sent,
+ * then won or lost; a lost one can be revived back to sent if the customer
+ * comes back (common in this trade). Editing a non-draft quotation resets it
+ * to draft and bumps the revision — see updateQuotation.
+ */
+export const STATUS_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
+  draft: ["sent"],
+  sent: ["approved", "lost", "draft"],
+  approved: ["sent"],
+  lost: ["sent"],
+};
+
+export const StatusEventSchema = z.object({
+  from: QuotationStatus,
+  to: QuotationStatus,
+  at: z.date(),
+  by: z.string(),
+});
+export type StatusEvent = z.infer<typeof StatusEventSchema>;
+
 export const GstRatePercent = z.union([z.literal(18), z.literal(9), z.literal(0)]);
 export type GstRatePercent = z.infer<typeof GstRatePercent>;
 
@@ -280,6 +301,7 @@ export const QuotationSchema = z.object({
   }),
   totals: QuotationTotalsSchema,
   terms: QuotationTermsSchema,
+  statusHistory: z.array(StatusEventSchema).default([]),
   createdBy: z.string(),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),
