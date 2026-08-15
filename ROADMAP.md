@@ -1,5 +1,10 @@
 # Roadmap — to industry standard
 
+> **Status: Phases 1–7 complete.** 82 unit tests + 7 browser suites (41 assertions)
+> all passing. Remaining: 8 (Tax Invoice), 9 (sharing), 10 (quotation UX),
+> 11 (rate admin), 12 (mobile/PWA), 13 (reporting), 14 (Atlas), 15 (deploy + branding).
+
+
 15 phases, ordered so that each one rests on the last. Correctness and security
 come before features; features come before polish; infrastructure and branding
 land at the end, once the thing they'd be decorating is actually finished.
