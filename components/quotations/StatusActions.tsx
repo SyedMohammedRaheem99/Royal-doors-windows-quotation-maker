@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useToast } from "@/components/ui/Toast";
 import { STATUS_TRANSITIONS, type QuotationStatus } from "@/models/schemas";
 
 const LABELS: Partial<Record<QuotationStatus, string>> = {
@@ -26,13 +27,25 @@ export function StatusActions({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const available = STATUS_TRANSITIONS[status] ?? [];
 
   function handle(to: QuotationStatus) {
     setError(null);
     startTransition(async () => {
-      const result = await onChange(to);
-      if ("error" in result) setError(result.error);
+      try {
+        const result = await onChange(to);
+        if ("error" in result) {
+          setError(result.error);
+          toast.error(result.error);
+        } else {
+          toast.success(`Status changed to ${to}.`);
+        }
+      } catch {
+        const message = "Couldn't update status. Check your connection and try again.";
+        setError(message);
+        toast.error(message);
+      }
     });
   }
 

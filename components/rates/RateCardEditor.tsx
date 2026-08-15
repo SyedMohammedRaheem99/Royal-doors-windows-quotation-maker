@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import type { RateCardEntry } from "@/models/schemas";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -22,6 +23,7 @@ export function RateCardEditor({
   const [rates, setRates] = useState<Record<string, number>>(Object.fromEntries(entries.map((e) => [e.productType, e.defaultRate])));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
 
   const byCategory = entries.reduce<Record<string, RateCardEntry[]>>((acc, e) => {
     (acc[e.category] ??= []).push(e);
@@ -36,9 +38,23 @@ export function RateCardEditor({
     const updates = entries
       .filter((e) => rates[e.productType] !== e.defaultRate)
       .map((e) => ({ productType: e.productType, defaultRate: rates[e.productType] }));
-    const result = await onSave(updates);
-    setSaving(false);
-    setMessage("error" in result ? result.error : `Saved ${updates.length} rate(s).`);
+    try {
+      const result = await onSave(updates);
+      if ("error" in result) {
+        setMessage(result.error);
+        toast.error(result.error);
+      } else {
+        const text = `Saved ${updates.length} rate${updates.length === 1 ? "" : "s"}.`;
+        setMessage(text);
+        toast.success(text);
+      }
+    } catch {
+      const text = "Couldn't save rates. Check your connection and try again.";
+      setMessage(text);
+      toast.error(text);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

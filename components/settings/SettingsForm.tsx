@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import type { EditableSettingsFields } from "@/lib/settings";
 
 function inputClass() {
@@ -20,13 +21,27 @@ export function SettingsForm({
   const [fields, setFields] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
 
   async function handleSave() {
     setSaving(true);
     setMessage(null);
-    const result = await onSave(fields);
-    setSaving(false);
-    setMessage("error" in result ? result.error : "Settings saved.");
+    try {
+      const result = await onSave(fields);
+      if ("error" in result) {
+        setMessage(result.error);
+        toast.error(result.error);
+      } else {
+        setMessage("Settings saved.");
+        toast.success("Settings saved.");
+      }
+    } catch {
+      const text = "Couldn't save settings. Check your connection and try again.";
+      setMessage(text);
+      toast.error(text);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

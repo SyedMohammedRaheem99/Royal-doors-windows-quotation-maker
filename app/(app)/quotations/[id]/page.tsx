@@ -10,6 +10,17 @@ import { StatusBadge } from "@/components/quotations/StatusBadge";
 import { StatusActions } from "@/components/quotations/StatusActions";
 import type { QuotationStatus } from "@/models/schemas";
 
+// There is deliberately no loading.tsx on this segment OR its parent
+// (../loading.tsx) — a loading.tsx anywhere in the ancestor chain wraps this
+// route in a Suspense boundary, which forces streaming and locks the HTTP
+// response to 200 before notFound() below can set 404 (Next.js can't change
+// the status code once streaming starts). Confirmed by removing ONLY this
+// segment's own loading.tsx: it made no difference, because ../loading.tsx
+// (the /quotations list page) was still wrapping this child route. The
+// response body is still correctly the not-found page either way — nothing
+// leaks — but a wrong status code on an authorization check is worth
+// avoiding for anything that inspects it (monitoring, API clients).
+// Verified by scripts/test-authz.mjs.
 export default async function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 

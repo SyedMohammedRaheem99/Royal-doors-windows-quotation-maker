@@ -7,6 +7,9 @@ import { QuotationBuilder, type QuotationSavePayload, type SaveResult } from "@/
 import { quotationToBuilderState } from "@/components/builder/fromQuotation";
 import { QuotationInputSchema, type Quotation, type RateCardEntry, type Settings } from "@/models/schemas";
 
+// No loading.tsx alongside this page, deliberately — see the comment on
+// QuotationDetailPage in ../page.tsx for why a Suspense boundary here would
+// undermine the ownership check's 404 status.
 export default async function EditQuotationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/Toast";
 import type { GstRatePercent, PaymentScheme, RateCardEntry, TermsLibrary, WorkDuration } from "@/models/schemas";
 import { ItemRow } from "./ItemRow";
 import { TotalsPanel } from "./TotalsPanel";
@@ -103,6 +104,7 @@ export function QuotationBuilder({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ id: string; quoteNo: string } | null>(null);
+  const toast = useToast();
 
   function updateItem(index: number, next: BuilderItem) {
     setItems((prev) => prev.map((it, i) => (i === index ? next : it)));
@@ -151,10 +153,19 @@ export function QuotationBuilder({
       const result = await onSave(payload);
       if ("error" in result) {
         setError(result.error);
+        toast.error(result.error);
       } else {
         setSuccess(result);
+        toast.success(`Saved as ${result.quoteNo}`);
         if (navigateOnSuccess) router.push(`/quotations/${result.id}`);
       }
+    } catch {
+      // A thrown exception (dropped connection, unexpected server error) is
+      // exactly the case handleSave previously left the user with no
+      // feedback for — the button just stopped spinning.
+      const message = "Couldn't save the quotation. Check your connection and try again.";
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }

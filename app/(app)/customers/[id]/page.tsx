@@ -6,6 +6,9 @@ import { loadCustomerWithHistory } from "@/lib/customers";
 import { withRevisionSuffix } from "@/lib/numbering";
 import { StatusBadge } from "@/components/quotations/StatusBadge";
 
+// No loading.tsx alongside this page, deliberately — see the comment on
+// QuotationDetailPage in app/(app)/quotations/[id]/page.tsx for why a
+// Suspense boundary here would undermine the ownership check's 404 status.
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 

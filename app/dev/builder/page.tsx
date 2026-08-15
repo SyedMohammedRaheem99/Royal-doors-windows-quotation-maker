@@ -5,6 +5,7 @@
 // Not linked from the app nav, not behind auth. Lets the builder UI and live
 // pricing be verified in a browser before Atlas credentials exist.
 import { QuotationBuilder, type QuotationSavePayload, type SaveResult } from "@/components/builder/QuotationBuilder";
+import { ToastProvider } from "@/components/ui/Toast";
 import { RATE_CARD_SEED } from "@/models/rateCardSeed";
 import { SETTINGS_SEED } from "@/models/settingsSeed";
 import type { RateCardEntry } from "@/models/schemas";
@@ -19,15 +20,17 @@ async function fakeSave(payload: QuotationSavePayload): Promise<SaveResult> {
 
 export default function DevBuilderPage() {
   return (
-    <div className="min-h-screen bg-neutral-50 p-8">
-      <h1 className="mb-6 text-xl font-semibold text-neutral-900">Dev builder harness</h1>
-      <QuotationBuilder
-        rateCard={RATE_CARD}
-        gstPresets={SETTINGS_SEED.gstPresets}
-        terms={SETTINGS_SEED.terms}
-        onSave={fakeSave}
-        navigateOnSuccess={false}
-      />
-    </div>
+    <ToastProvider>
+      <div className="min-h-screen bg-neutral-50 p-8">
+        <h1 className="mb-6 text-xl font-semibold text-neutral-900">Dev builder harness</h1>
+        <QuotationBuilder
+          rateCard={RATE_CARD}
+          gstPresets={SETTINGS_SEED.gstPresets}
+          terms={SETTINGS_SEED.terms}
+          onSave={fakeSave}
+          navigateOnSuccess={false}
+        />
+      </div>
+    </ToastProvider>
   );
 }
