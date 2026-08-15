@@ -81,9 +81,23 @@ See [DEMO.md](DEMO.md) for a walkthrough script.
 
 ## Tests
 
+Two layers. Unit tests need nothing running:
+
 ```bash
-npm test
+npm run verify     # typecheck + lint + unit tests
 ```
+
+Browser suites need a built app, a database, and two seeded accounts:
+
+```bash
+npm run build && npm run start          # in one terminal
+npm run test:e2e -- <adminEmail> <adminPass> <salesEmail> <salesPass>
+```
+
+The browser suites cover authorization (a sales user must not reach another user's quotation by
+URL, API, print view, or list), customer scoping, unique-index enforcement against a real
+database, pagination, dashboard figures against a known dataset, and the full create → print →
+edit → duplicate journey.
 
 The pricing engine is the correctness anchor, so its tests assert against **real historical
 quotations** — five of them reproduce to the exact rupee, and one test specifically proves the
