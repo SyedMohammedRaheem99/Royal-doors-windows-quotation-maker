@@ -88,6 +88,7 @@ const quotation: Quotation = {
     extraNotes: [],
   },
   statusHistory: [],
+  payments: [],
   createdBy: "dev",
 };
 

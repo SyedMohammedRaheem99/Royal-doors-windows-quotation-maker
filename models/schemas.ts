@@ -286,6 +286,34 @@ export const QuotationInputSchema = z.object({
 });
 export type QuotationInput = z.infer<typeof QuotationInputSchema>;
 
+/**
+ * How a payment reached the business. Mirrors the vocabulary in the
+ * `HKBK - Suhail` reference sheet, which tracked "Cash" and "Online"
+ * receipts against a quotation.
+ */
+export const PaymentMethod = z.enum(["cash", "online", "cheque", "upi"]);
+export type PaymentMethod = z.infer<typeof PaymentMethod>;
+
+export const PaymentSchema = z.object({
+  id: z.string(),
+  amount: z.number().positive(),
+  method: PaymentMethod,
+  receivedAt: z.date(),
+  note: z.string().default(""),
+  recordedBy: z.string(),
+  recordedAt: z.date(),
+});
+export type Payment = z.infer<typeof PaymentSchema>;
+
+/** What the client may send when recording a payment — server supplies id, recordedBy, recordedAt. */
+export const PaymentInputSchema = z.object({
+  amount: z.number().positive("Amount must be greater than zero."),
+  method: PaymentMethod,
+  receivedAt: z.coerce.date(),
+  note: z.string().max(200).default(""),
+});
+export type PaymentInput = z.infer<typeof PaymentInputSchema>;
+
 export const QuotationSchema = z.object({
   _id: z.string().optional(),
   quoteNo: z.string(), // "RDW/25-26/0042"
@@ -302,6 +330,7 @@ export const QuotationSchema = z.object({
   totals: QuotationTotalsSchema,
   terms: QuotationTermsSchema,
   statusHistory: z.array(StatusEventSchema).default([]),
+  payments: z.array(PaymentSchema).default([]),
   createdBy: z.string(),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),

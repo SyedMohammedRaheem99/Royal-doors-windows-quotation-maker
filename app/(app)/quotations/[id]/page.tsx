@@ -5,10 +5,11 @@ import { auth } from "@/auth";
 import { actorFromSession } from "@/lib/authz";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering";
-import { duplicateQuotation, loadQuotationFor, setQuotationStatus } from "@/lib/quotations";
+import { addPayment, duplicateQuotation, loadQuotationFor, removePayment, setQuotationStatus } from "@/lib/quotations";
 import { StatusBadge } from "@/components/quotations/StatusBadge";
 import { StatusActions } from "@/components/quotations/StatusActions";
-import type { QuotationStatus } from "@/models/schemas";
+import { PaymentsPanel } from "@/components/quotations/PaymentsPanel";
+import { PaymentInputSchema, type PaymentInput, type QuotationStatus } from "@/models/schemas";
 
 // There is deliberately no loading.tsx on this segment OR its parent
 // (../loading.tsx) — a loading.tsx anywhere in the ancestor chain wraps this
@@ -51,6 +52,35 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
     revalidatePath(`/quotations/${id}`);
     revalidatePath("/quotations");
     revalidatePath("/dashboard");
+    return { ok: true as const };
+  }
+
+  async function addPaymentAction(input: PaymentInput) {
+    "use server";
+    const actor2 = actorFromSession(await auth());
+    if (!actor2) return { error: "Not authenticated." };
+
+    // Re-validate server-side: the client form is a convenience, not a
+    // trust boundary.
+    const parsed = PaymentInputSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues.map((i) => i.message).join(", ") };
+
+    const result = await addPayment(id, parsed.data, actor2);
+    if (!result.ok) return { error: result.error };
+
+    revalidatePath(`/quotations/${id}`);
+    return { ok: true as const };
+  }
+
+  async function removePaymentAction(paymentId: string) {
+    "use server";
+    const actor2 = actorFromSession(await auth());
+    if (!actor2) return { error: "Not authenticated." };
+
+    const result = await removePayment(id, paymentId, actor2);
+    if (!result.ok) return { error: result.error };
+
+    revalidatePath(`/quotations/${id}`);
     return { ok: true as const };
   }
 
@@ -144,6 +174,17 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
         </div>
       </div>
       <p className="mt-2 text-right text-xs italic text-neutral-500">{amountInWords(quotation.totals.grandTotal)}</p>
+
+      <div className="mt-8">
+        <PaymentsPanel
+          payments={JSON.parse(JSON.stringify(quotation.payments ?? []))}
+          grandTotal={quotation.totals.grandTotal}
+          scheme={quotation.terms.paymentScheme}
+          canRecord={quotation.status === "approved"}
+          onAdd={addPaymentAction}
+          onRemove={removePaymentAction}
+        />
+      </div>
     </div>
   );
 }

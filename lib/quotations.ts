@@ -7,6 +7,8 @@ import { nextQuoteNo } from "./numbering";
 import { computeItem, computeTotals, SURCHARGES } from "./pricing";
 import {
   STATUS_TRANSITIONS,
+  type Payment,
+  type PaymentInput,
   type QuotationInput,
   type QuotationStatus,
   type StatusEvent,
@@ -127,6 +129,7 @@ export async function createQuotation(input: QuotationInput, userId: string) {
     totals,
     terms: input.terms,
     statusHistory: [],
+    payments: [],
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
@@ -254,5 +257,68 @@ export async function duplicateQuotation(
     terms: source.terms,
   };
 
+  // Payments are deliberately NOT copied: a duplicate is a new commercial
+  // offer, and carrying the original's receipts across would misstate what
+  // the customer owes on it.
   return ok(await createQuotation(input, actor.id));
+}
+
+/**
+ * Records a payment against a quotation.
+ *
+ * Only meaningful once a quotation is approved — recording money against a
+ * draft or lost quote is almost certainly a mistake, so it's rejected rather
+ * than silently accepted. Goes through loadQuotationFor, so the same
+ * ownership rules as every other mutation apply.
+ */
+export async function addPayment(
+  id: string,
+  input: PaymentInput,
+  actor: Actor
+): Promise<Result<Payment>> {
+  const loaded = await loadQuotationFor(id, actor);
+  if (!loaded.ok) return loaded;
+  const quotation = loaded.data;
+
+  if (quotation.status !== "approved") {
+    return fail("Payments can only be recorded against an approved quotation.");
+  }
+
+  const now = new Date();
+  const payment: Payment = {
+    id: crypto.randomUUID(),
+    amount: input.amount,
+    method: input.method,
+    receivedAt: input.receivedAt,
+    note: input.note,
+    recordedBy: actor.id,
+    recordedAt: now,
+  };
+
+  const col = await quotationsCollection();
+  await col.updateOne(
+    { _id: new ObjectId(id) },
+    { $push: { payments: payment }, $set: { updatedAt: now } }
+  );
+
+  return ok(payment);
+}
+
+/** Removes a payment — for correcting a mis-keyed entry. */
+export async function removePayment(
+  id: string,
+  paymentId: string,
+  actor: Actor
+): Promise<Result<null>> {
+  const loaded = await loadQuotationFor(id, actor);
+  if (!loaded.ok) return loaded;
+
+  const col = await quotationsCollection();
+  const result = await col.updateOne(
+    { _id: new ObjectId(id) },
+    { $pull: { payments: { id: paymentId } }, $set: { updatedAt: new Date() } }
+  );
+
+  if (result.modifiedCount === 0) return fail("Payment not found.");
+  return ok(null);
 }

@@ -3,7 +3,7 @@
 // shows wrong figures is worse than one that doesn't render at all.
 import { config } from "dotenv";
 config({ path: ".env.local" });
-import { MongoClient, ObjectId } from "mongodb";
+import { MongoClient } from "mongodb";
 import { chromium } from "playwright";
 
 const BASE = "http://localhost:3000";
