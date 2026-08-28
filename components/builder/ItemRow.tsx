@@ -24,15 +24,21 @@ function labelClass() {
 export function ItemRow({
   item,
   index,
+  total,
   rateCard,
   onChange,
   onRemove,
+  onDuplicate,
+  onMove,
 }: {
   item: BuilderItem;
   index: number;
+  total: number;
   rateCard: RateCardEntry[];
   onChange: (next: BuilderItem) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
+  onMove: (direction: -1 | 1) => void;
 }) {
   const selectedProduct = rateCard.find((p) => p.productType === item.productType);
   const computed = computeBuilderItem(item);
@@ -75,9 +81,38 @@ export function ItemRow({
       <div>
         <div className="mb-3 flex items-center justify-between">
           <span className="text-sm font-semibold text-neutral-700">Item {index + 1}</span>
-          <button type="button" onClick={onRemove} className="text-xs text-red-600 hover:underline">
-            Remove
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onMove(-1)}
+              disabled={index === 0}
+              title="Move up"
+              aria-label="Move item up"
+              className="rounded px-1.5 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => onMove(1)}
+              disabled={index === total - 1}
+              title="Move down"
+              aria-label="Move item down"
+              className="rounded px-1.5 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              onClick={onDuplicate}
+              className="rounded px-2 py-0.5 text-xs text-neutral-600 hover:bg-neutral-100"
+            >
+              Duplicate
+            </button>
+            <button type="button" onClick={onRemove} className="rounded px-2 py-0.5 text-xs text-red-600 hover:bg-red-50">
+              Remove
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-4 gap-3">
@@ -96,12 +131,22 @@ export function ItemRow({
               ))}
             </select>
           </div>
-          <div className="col-span-2">
+          <div>
             <label className={labelClass()}>Description (on quotation)</label>
             <input
               className={inputClass("w-full")}
               value={item.description}
               onChange={(e) => patch({ description: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className={labelClass()}>Room / area</label>
+            <input
+              className={inputClass("w-full")}
+              value={item.room}
+              placeholder="e.g. Master bedroom"
+              list="room-suggestions"
+              onChange={(e) => patch({ room: e.target.value })}
             />
           </div>
 

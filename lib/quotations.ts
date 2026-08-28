@@ -241,6 +241,7 @@ export async function duplicateQuotation(
       id: crypto.randomUUID(),
       productType: item.productType,
       description: item.description,
+      room: item.room ?? "",
       handing: item.handing,
       measuredMm: item.measuredMm,
       billed: item.billed,

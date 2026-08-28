@@ -249,6 +249,8 @@ export const QuotationItemSchema = z.object({
   id: z.string(),
   productType: z.string(), // rate-card slug this item was priced from
   description: z.string().min(1), // "2.5 Track sliding window with fly mesh"
+  /** Room/area grouping — "Master bedroom", "Balcony". Blank means ungrouped. */
+  room: z.string().default(""),
   handing: Handing.default("none"),
   measuredMm: z.object({ w: z.number().nonnegative(), h: z.number().nonnegative() }).optional(),
   billed: z.object({ w: z.number().positive(), h: z.number().positive() }),

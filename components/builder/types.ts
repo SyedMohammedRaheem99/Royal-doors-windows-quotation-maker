@@ -5,6 +5,12 @@ export interface BuilderItem {
   key: string;
   productType: string; // rate-card slug; "" until chosen
   description: string;
+  /**
+   * Which room or area this unit belongs to — "Master bedroom", "Balcony",
+   * "Kitchen". Optional, but when used the printed quotation groups by it
+   * with per-room subtotals, which is how a customer reads a multi-room job.
+   */
+  room: string;
   diagramType: DiagramType;
   handing: Handing;
   fanPoint: boolean;
@@ -23,6 +29,7 @@ export function emptyItem(key: string): BuilderItem {
     key,
     productType: "",
     description: "",
+    room: "",
     diagramType: "fixed",
     handing: "none",
     fanPoint: false,

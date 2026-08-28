@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
+import { clearDraft, loadDraft, useDraftAutosave } from "./useDraftAutosave";
 import type { GstRatePercent, PaymentScheme, RateCardEntry, TermsLibrary, WorkDuration } from "@/models/schemas";
 import { ItemRow } from "./ItemRow";
 import { TotalsPanel } from "./TotalsPanel";
@@ -14,6 +15,7 @@ export interface QuotationSavePayload {
     id: string;
     productType: string;
     description: string;
+    room: string;
     handing: BuilderItem["handing"];
     measuredMm?: { w: number; h: number };
     billed: { w: number; h: number };
@@ -57,6 +59,19 @@ let keyCounter = 0;
 function nextKey() {
   keyCounter += 1;
   return `item-${Date.now()}-${keyCounter}`;
+}
+
+/** Exactly the state the autosaved draft round-trips. */
+interface DraftPayload {
+  customer: BuilderCustomer;
+  items: BuilderItem[];
+  transportation: number;
+  gst: BuilderGst;
+  warrantyYears: number;
+  workDurationIdx: number;
+  paymentSchemeIdx: number;
+  profile: string;
+  glass: string;
 }
 
 export interface QuotationBuilderInitial {
@@ -106,12 +121,99 @@ export function QuotationBuilder({
   const [success, setSuccess] = useState<{ id: string; quoteNo: string } | null>(null);
   const toast = useToast();
 
+  // Autosave only applies to a NEW quotation — an edit already has a server
+  // copy, and a stale local draft overriding it would be worse than losing
+  // the unsaved changes. See useDraftAutosave for the full reasoning.
+  const isNewQuotation = !initial;
+
+  // Read any recoverable draft in a lazy initialiser rather than an effect.
+  // An effect would setState during the first commit and trigger a second
+  // render for no reason; this resolves in one pass. It also naturally runs
+  // once, which is what we want — re-checking as the user types would keep
+  // re-offering the very draft they are overwriting.
+  //
+  // loadDraft() guards `typeof window === "undefined"` and returns null on
+  // the server, so this is safe during SSR; the value is simply null until
+  // hydration, at which point React re-runs the initialiser on the client.
+  const [recoverable, setRecoverable] = useState<number | null>(
+    () => (isNewQuotation ? (loadDraft<DraftPayload>()?.savedAt ?? null) : null)
+  );
+
+  const draftState: DraftPayload = {
+    customer,
+    items,
+    transportation,
+    gst,
+    warrantyYears,
+    workDurationIdx,
+    paymentSchemeIdx,
+    profile,
+    glass,
+  };
+  // Don't start saving until something has actually been typed, so merely
+  // opening the page doesn't leave a phantom "restore draft?" prompt behind.
+  const hasContent = customer.name.trim().length > 0 || items.some((it) => it.productType !== "");
+  const draftSavedAt = useDraftAutosave(draftState, isNewQuotation && hasContent);
+
+  function restoreDraft() {
+    const draft = loadDraft<DraftPayload>();
+    if (!draft) return;
+    setCustomer(draft.data.customer);
+    setItems(draft.data.items);
+    setTransportation(draft.data.transportation);
+    setGst(draft.data.gst);
+    setWarrantyYears(draft.data.warrantyYears);
+    setWorkDurationIdx(draft.data.workDurationIdx);
+    setPaymentSchemeIdx(draft.data.paymentSchemeIdx);
+    setProfile(draft.data.profile);
+    setGlass(draft.data.glass);
+    setRecoverable(null);
+    toast.success("Draft restored.");
+  }
+
+  function discardDraft() {
+    clearDraft();
+    setRecoverable(null);
+  }
+
   function updateItem(index: number, next: BuilderItem) {
     setItems((prev) => prev.map((it, i) => (i === index ? next : it)));
   }
 
   function removeItem(index: number) {
     setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  /**
+   * Most quotations repeat near-identical units (four bedroom windows of the
+   * same spec, different sizes), so duplicating and adjusting is far faster
+   * than re-selecting the product and every spec each time.
+   */
+  function duplicateItem(index: number) {
+    setItems((prev) => {
+      const source = prev[index];
+      const copy: BuilderItem = {
+        ...source,
+        key: nextKey(),
+        // Deep-copy the nested objects so editing the copy doesn't mutate
+        // the original through a shared reference.
+        billed: { ...source.billed },
+        measuredMm: source.measuredMm ? { ...source.measuredMm } : undefined,
+        specs: { ...source.specs },
+        surcharges: [...source.surcharges],
+      };
+      return [...prev.slice(0, index + 1), copy, ...prev.slice(index + 1)];
+    });
+  }
+
+  function moveItem(index: number, direction: -1 | 1) {
+    setItems((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   }
 
   const canSave = customer.name.trim().length > 0 && items.length > 0 && items.every((it) => it.productType);
@@ -126,6 +228,7 @@ export function QuotationBuilder({
           id: item.key,
           productType: item.productType,
           description: item.description,
+          room: item.room,
           handing: item.handing,
           measuredMm: item.measuredMm,
           billed: item.billed,
@@ -157,6 +260,9 @@ export function QuotationBuilder({
       } else {
         setSuccess(result);
         toast.success(`Saved as ${result.quoteNo}`);
+        // The work is safely on the server now — keeping the local draft
+        // would only resurface as a stale "restore?" prompt next time.
+        clearDraft();
         if (navigateOnSuccess) router.push(`/quotations/${result.id}`);
       }
     } catch {
@@ -174,6 +280,31 @@ export function QuotationBuilder({
   return (
     <div className="grid grid-cols-[1fr_320px] gap-6">
       <div className="space-y-6">
+        {recoverable && (
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-900">
+              You have an unsaved draft from{" "}
+              {new Date(recoverable).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.
+            </p>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={restoreDraft}
+                className="rounded bg-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#c9a227] hover:bg-[#0c3125]"
+              >
+                Restore it
+              </button>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="rounded border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Customer block */}
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <h2 className="mb-3 text-sm font-semibold text-neutral-700">Customer</h2>
@@ -205,10 +336,30 @@ export function QuotationBuilder({
           </div>
         </div>
 
+        {/* Room names seen across the reference quotations, offered as
+            suggestions rather than a fixed list — every job differs. */}
+        <datalist id="room-suggestions">
+          {["Living room", "Master bedroom", "Bedroom 1", "Bedroom 2", "Kitchen", "Balcony", "Bathroom", "Terrace", "Staircase", "Pooja room", "Hall"].map(
+            (room) => (
+              <option key={room} value={room} />
+            )
+          )}
+        </datalist>
+
         {/* Items */}
         <div className="space-y-3">
           {items.map((item, i) => (
-            <ItemRow key={item.key} item={item} index={i} rateCard={rateCard} onChange={(next) => updateItem(i, next)} onRemove={() => removeItem(i)} />
+            <ItemRow
+              key={item.key}
+              item={item}
+              index={i}
+              total={items.length}
+              rateCard={rateCard}
+              onChange={(next) => updateItem(i, next)}
+              onRemove={() => removeItem(i)}
+              onDuplicate={() => duplicateItem(i)}
+              onMove={(dir) => moveItem(i, dir)}
+            />
           ))}
           <button
             type="button"
@@ -296,6 +447,13 @@ export function QuotationBuilder({
         >
           {saving ? "Saving..." : saveLabel}
         </button>
+
+        {isNewQuotation && draftSavedAt && (
+          <p className="text-center text-xs text-neutral-400">
+            Draft saved locally at{" "}
+            {new Date(draftSavedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+          </p>
+        )}
       </div>
     </div>
   );

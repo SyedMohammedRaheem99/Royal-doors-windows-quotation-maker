@@ -37,6 +37,7 @@ function item(overrides: Partial<QuotationInput["items"][number]> = {}): Quotati
     id: "i1",
     productType: "sliding_2_track",
     description: "2 Track sliding window",
+    room: "",
     handing: "none",
     billed: { w: 5, h: 4 },
     qty: 1,

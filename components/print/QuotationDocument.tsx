@@ -1,5 +1,6 @@
 import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel } from "@/lib/dimensions";
+import { groupItemsByRoom, usesRooms } from "@/lib/grouping";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering";
 import type { Quotation, Settings } from "@/models/schemas";
@@ -40,6 +41,11 @@ export function QuotationDocument({ quotation, settings }: { quotation: Quotatio
   ].filter((line): line is string => Boolean(line));
 
   const additionalNotes = boiler.slice(5);
+
+  // Grouping rules (first-occurrence order, continuous numbering) live in
+  // lib/grouping.ts so they're unit-tested — see grouping.test.ts.
+  const showRooms = usesRooms(quotation.items);
+  const groups = groupItemsByRoom(quotation.items);
 
   return (
     <>
@@ -108,6 +114,14 @@ export function QuotationDocument({ quotation, settings }: { quotation: Quotatio
           border-bottom: 2px solid ${GOLD}; padding-bottom: 3px;
         }
 
+        .room-head {
+          display: flex; justify-content: space-between; align-items: baseline;
+          margin: 4mm 0 2mm; padding-bottom: 1.5mm;
+          border-bottom: 1px solid ${GOLD};
+          font-size: 10px; font-weight: 700; color: ${GREEN};
+          text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .room-head .room-total { font-size: 10.5px; letter-spacing: 0; }
         .item-card {
           display: grid; grid-template-columns: 34mm 1fr 26mm; gap: 4mm;
           border: 1px solid #e6ddc4; border-radius: 3px; padding: 3mm; margin-bottom: 3mm; background: white;
@@ -210,41 +224,53 @@ export function QuotationDocument({ quotation, settings }: { quotation: Quotatio
           <div className="section-title">Quotation for Supply &amp; Installation</div>
 
           <div>
-            {quotation.items.map((item, i) => (
-              <div key={item.id} className="item-card avoid-break">
-                <div className="item-diagram">
-                  <WindowDiagram
-                    type={item.diagram.type}
-                    widthFt={item.billed.w}
-                    heightFt={item.billed.h}
-                    handing={item.diagram.handing}
-                    fanPoint={item.diagram.fanPoint}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <div className="item-head">
-                    <span className="item-no">{i + 1}</span>
-                    <span className="item-desc">{item.description}</span>
+            {groups.map((group) => (
+              <div key={group.room || "__ungrouped"}>
+                {/* Only show a room heading when rooms are actually in use —
+                    a single-room job shouldn't gain an empty header. */}
+                {showRooms && group.room && (
+                  <div className="room-head avoid-break">
+                    <span>{group.room}</span>
+                    <span className="room-total">₹{group.subtotal.toLocaleString("en-IN")}</span>
                   </div>
-                  <div className="item-specs">
-                    {item.specs.colour && <span>Colour: {item.specs.colour}</span>}
-                    {item.specs.glass && <span>Glass: {item.specs.glass}</span>}
-                    {item.specs.mesh && <span>Mesh: {item.specs.mesh}</span>}
-                    {item.surcharges.length > 0 && <span>+ {item.surcharges.length} surcharge(s) applied</span>}
-                    {item.remarks && <span>{item.remarks}</span>}
+                )}
+                {group.items.map(({ item, displayIndex }) => (
+                  <div key={item.id} className="item-card avoid-break">
+                    <div className="item-diagram">
+                      <WindowDiagram
+                        type={item.diagram.type}
+                        widthFt={item.billed.w}
+                        heightFt={item.billed.h}
+                        handing={item.diagram.handing}
+                        fanPoint={item.diagram.fanPoint}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <div className="item-head">
+                        <span className="item-no">{displayIndex}</span>
+                        <span className="item-desc">{item.description}</span>
+                      </div>
+                      <div className="item-specs">
+                        {item.specs.colour && <span>Colour: {item.specs.colour}</span>}
+                        {item.specs.glass && <span>Glass: {item.specs.glass}</span>}
+                        {item.specs.mesh && <span>Mesh: {item.specs.mesh}</span>}
+                        {item.surcharges.length > 0 && <span>+ {item.surcharges.length} surcharge(s) applied</span>}
+                        {item.remarks && <span>{item.remarks}</span>}
+                      </div>
+                      <div className="item-dims">
+                        {feetToArchLabel(item.billed.w)} × {feetToArchLabel(item.billed.h)} &nbsp;·&nbsp; Qty {item.qty}
+                        &nbsp;·&nbsp; {item.totalAreaSqft} sqft
+                      </div>
+                    </div>
+                    <div className="item-price">
+                      <div className="rate">
+                        ₹{item.rate}/{item.pricingMode === "per_sqft" ? "sqft" : "pc"}
+                      </div>
+                      <div className="amount">₹{item.amount.toLocaleString("en-IN")}</div>
+                    </div>
                   </div>
-                  <div className="item-dims">
-                    {feetToArchLabel(item.billed.w)} × {feetToArchLabel(item.billed.h)} &nbsp;·&nbsp; Qty {item.qty}
-                    &nbsp;·&nbsp; {item.totalAreaSqft} sqft
-                  </div>
-                </div>
-                <div className="item-price">
-                  <div className="rate">
-                    ₹{item.rate}/{item.pricingMode === "per_sqft" ? "sqft" : "pc"}
-                  </div>
-                  <div className="amount">₹{item.amount.toLocaleString("en-IN")}</div>
-                </div>
+                ))}
               </div>
             ))}
           </div>

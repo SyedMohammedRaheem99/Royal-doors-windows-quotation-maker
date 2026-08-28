@@ -9,6 +9,7 @@ export function quotationToBuilderState(quotation: Quotation, terms: TermsLibrar
     key: item.id,
     productType: item.productType,
     description: item.description,
+    room: item.room ?? "", // absent on quotations created before room grouping existed
     diagramType: item.diagram.type,
     handing: item.handing,
     fanPoint: item.diagram.fanPoint,
