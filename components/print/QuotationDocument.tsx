@@ -217,6 +217,20 @@ export function QuotationDocument({
              repeats thead on each page a table crosses. */
           .item-table thead { display: table-header-group; }
           .item-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+          /* Terms and commercials always begin a fresh page and stay whole.
+             break-before guarantees the page; break-inside stops the group
+             being torn even though its individual panels already avoid
+             breaking on their own — without the wrapper, nothing prevented the
+             GROUP from splitting between panels, which is how the acceptance
+             block ended up marooned after the payment schedule. */
+          .terms-page {
+            break-before: page; page-break-before: always;
+            break-inside: avoid; page-break-inside: avoid;
+          }
+          /* The first panel inside sits flush at the top of its new page —
+             its own top margin would otherwise push it down by 3mm. */
+          .terms-page > .panel:first-child { margin-top: 0; }
         }
         .content { padding: 3mm 14mm; flex: 1; }
         .band-header {
@@ -433,6 +447,11 @@ export function QuotationDocument({
              block now fills. Saves ~16mm on every quotation. */
           grid-template-areas: "incl warr time" "incl upgr upgr";
           align-content: start;
+          /* Stretch each box to its row so the three columns end on a common
+             baseline instead of leaving ragged voids beneath the shorter
+             ones — with the terms on a page of their own there is room to
+             let them breathe rather than sizing every box to its content. */
+          align-items: stretch;
           /* Size each column to its own content. With the default stretch
              behaviour the one-line "Timeline and conditions" box was forced to
              the height of the six-line "What's included" box, wasting ~30mm of
@@ -870,28 +889,26 @@ export function QuotationDocument({
             </div>
           </div>
 
-          {/* Small at-a-glance strip — only categories with real stored data
-              (payment scheme, work duration, warranty years, validity days).
-              No cancellation/installation-conditions card: nothing in
-              settings or terms captures that today, and inventing wording
-              here would be printing a commitment the business never made. */}
           {/* The quick-terms icon strip (Payment / Warranty / Validity) was
               removed: every one of its three facts is already stated somewhere
               more useful — the payment split in the Payment Schedule
               milestones, the warranty in the Specification panel, the validity
-              date in the letterhead. It restated them in a 4-column grid
-              holding 3 items, costing ~13mm of a page that has none spare.
-              See spec 51: an element that answers none of the seven questions
-              on its own doesn't earn its space. */}
+              date in the letterhead. See spec 51: an element that answers none
+              of the seven questions on its own doesn't earn its space. */}
 
-          {/* Single compact column — Terms, Charges, Payment Schedule, Bank
-              Details stacked in that order, matching the agreed reference
-              rather than the wider 2-column split used before. */}
-          {/* Specification and its "charges that may apply" rider are one
-              unit — the charges qualify the terms directly above them, so a
-              page break between the two would strand the caveats away from
-              what they modify. Grouped in a single avoid-break wrapper so
-              they migrate to the next page together. */}
+          {/* ---- Terms & commercials: always a page of their own ----
+              The schedule and the money end above. Everything from here —
+              specification, optional upgrades, payment schedule, bank details
+              and the acceptance block — starts a fresh page and travels as one
+              unit, so it can never be torn across a break or overlap the end
+              of the schedule.
+
+              Measured at ~152mm including the contact band, against 273mm of
+              printable height on a continuation page: it fits with ~120mm to
+              spare, and its height is driven by the terms list rather than the
+              item count, so the fit holds for a 1-item and a 50-item
+              quotation alike. */}
+          <div className="terms-page">
           <div className="avoid-break panel">
             <h3>Specification &amp; Terms</h3>
             <div className="panel-body">
@@ -1063,6 +1080,7 @@ export function QuotationDocument({
             </div>
 
             <p className="thank-you">Thank you for choosing {settings.companyName}.</p>
+          </div>
           </div>
         </div>
 
