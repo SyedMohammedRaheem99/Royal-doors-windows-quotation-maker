@@ -25,8 +25,9 @@ const SURCHARGE_LABELS: Record<string, string> = {
   frenchWindowDesign: `French window design (+₹${SURCHARGES.frenchWindowDesign}/sqft)`,
 };
 
+/** One date format across the whole document: "30 August 2026". */
 function formatDate(d: Date | string) {
-  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 
@@ -205,8 +206,33 @@ export function QuotationDocument({
               font-size: 7.5pt;
               color: #6b7280;
             }
+            /* Repeating letterhead on continued pages. A position:fixed
+               element does NOT repeat in Chrome's paged output — verified by
+               reading the generated PDF's own text: it painted on page 1 only,
+               while pages 2-6 carried no brand at all. Margin boxes do repeat,
+               the same mechanism already proven for the footer and page
+               numbers below. */
+            @top-left {
+              content: "ROYAL UPVC · DOORS AND WINDOWS";
+              font-size: 8.5pt;
+              font-weight: 700;
+              color: ${GREEN};
+              vertical-align: bottom;
+            }
+            @top-right {
+              content: "${withRevisionSuffix(quotation.quoteNo, quotation.revision)}${quotation.customer.name ? " · " + quotation.customer.name.replace(/"/g, "") : ""}";
+              font-size: 8pt;
+              color: #6b7280;
+              vertical-align: bottom;
+            }
           }
-          @page :first { margin: 0 14mm 11mm; }
+          /* Page 1 carries the full letterhead band in the flow, so it needs
+             no top reservation and no running header. */
+          @page :first {
+            margin: 0 14mm 11mm;
+            @top-left { content: ""; }
+            @top-right { content: ""; }
+          }
 
           /* A real repeating letterhead on every continued page: logo, company
              name and the quote number, so page 2+ is identifiable on its own
@@ -227,7 +253,7 @@ export function QuotationDocument({
           }
           .run-head img { width: 9mm; height: 9mm; object-fit: cover; border: 1px solid ${GOLD}; border-radius: 2px; }
           .run-head .rh-name { font-family: Georgia, "Times New Roman", serif; font-size: 12px; font-weight: 700; color: ${GOLD}; letter-spacing: 0.03em; }
-          .run-head .rh-sub { font-size: 7.5px; color: #cfe0d5; letter-spacing: 0.06em; }
+          .run-head .rh-sub { font-size: 7px; color: #cfe0d5; letter-spacing: 0.18em; }
           .run-head .rh-right { margin-left: auto; text-align: right; }
           .run-head .rh-qno { font-size: 10px; font-weight: 700; color: ${GOLD}; }
           .run-head .rh-cust { font-size: 7.5px; color: #cfe0d5; }
@@ -245,35 +271,18 @@ export function QuotationDocument({
              breaking on their own — without the wrapper, nothing prevented the
              GROUP from splitting between panels, which is how the acceptance
              block ended up marooned after the payment schedule. */
+          /* Natural document flow — no fixed height, no spacer elements. An
+             earlier version pinned this to 246mm and pushed the closing block
+             down with a flexible spacer; that is exactly the "content
+             positioned by fixed heights rather than composed" problem, and it
+             produced the large empty band in the middle of the page. The
+             sections now simply follow one another and the page fills from the
+             density of the content itself. */
           .terms-page {
             break-before: page; page-break-before: always;
-            break-inside: avoid; page-break-inside: avoid;
-            /* Claim the full printable height so the contact band lands at the
-               foot of the sheet and the page reads as a designed page rather
-               than a fragment that spilled over.
-
-               Sections keep their natural heights; one flexible spacer before
-               the closing block pushes the acceptance and sign-off to the
-               bottom, so the spare height collects in a single deliberate gap
-               instead of several ragged ones. Stretching the panels themselves
-               was tried and rejected — it opened voids INSIDE the bordered
-               boxes, which reads as a bug rather than as spacing.
-
-               A fixed height in mm rather than 100vh: viewport units are
-               unreliable in Chrome's paged output and overflowed onto an extra
-               page when tried. 297mm less the 13/11mm @page margins and the
-               contact band leaves this. */
-            height: 246mm;
-            display: flex;
-            flex-direction: column;
-            gap: 4mm;
           }
-          /* Boxes hug their own content; only the spacer flexes. */
-          .terms-page > * { flex: 0 0 auto; }
-          .terms-page .tp-spacer { flex: 1 1 auto; min-height: 0; }
-          /* The first panel sits flush at the top of its new page — its own
-             top margin would otherwise push it down. */
-          .terms-page > .panel:first-child { margin-top: 0; }
+          /* The heading sits flush at the top of its new page. */
+          .terms-page > .page-title { margin-top: 0; }
           /* Panels carry their own margins for the continuous on-screen view;
              on paper the flex gap handles the rhythm, so drop them to avoid
              doubling up. */
@@ -287,7 +296,7 @@ export function QuotationDocument({
           /* Was 8mm/6mm — the band was 29mm tall, ~10% of the page and the
              single largest element on it. Tightened without shrinking the
              logo or the quote number. */
-          padding: 4mm 14mm 3.5mm;
+          padding: 4.5mm 14mm 4mm;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -298,20 +307,25 @@ export function QuotationDocument({
           overflow: hidden; flex-shrink: 0;
         }
         .logo-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .brand-name { color: ${GOLD}; font-size: 17px; font-weight: 700; letter-spacing: 0.03em; font-family: Georgia, "Times New Roman", serif; }
-        /* "DOORS AND WINDOWS" sits on the same line as ROYAL rather than
-           stacked beneath it — the stack cost ~4mm of band height to say what
-           the gold footer band already repeats. */
-        .brand-name small {
+        .brand-name {
+          color: ${GOLD}; font-size: 21px; font-weight: 700; line-height: 1.05;
+          letter-spacing: 0.04em; font-family: Georgia, "Times New Roman", serif;
+        }
+        .brand-sub {
           color: #f2e6c2; font-size: 8.5px; font-weight: 500;
-          letter-spacing: 0.12em; margin-left: 5px;
+          letter-spacing: 0.22em; margin-top: 1.2mm;
         }
         .quote-meta { text-align: right; font-size: 8.5px; color: #e8efe9; }
         /* The quote number is the field people actually quote back on a phone
            call, so it reads as the document's identifier rather than competing
            with the brand name. */
+        /* "QUOTATION" names the document; the number identifies it. */
+        .quote-meta .doc-kind {
+          color: #fff; font-size: 11px; font-weight: 700;
+          letter-spacing: 0.2em; margin-bottom: 1mm;
+        }
         .quote-meta .qno {
-          color: ${GOLD}; font-size: 14px; font-weight: 700; margin-bottom: 2px;
+          color: ${GOLD}; font-size: 13px; font-weight: 700; margin-bottom: 1.5mm;
           letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
         }
         /* Dates as a small label/value grid so the two rows align on one
@@ -320,9 +334,7 @@ export function QuotationDocument({
           display: grid; grid-template-columns: auto auto; column-gap: 6px;
           justify-content: end; align-items: baseline;
         }
-        .quote-meta .row span:first-child {
-          color: #a9c2b1; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.06em;
-        }
+        .quote-meta .row span:first-child { color: #a9c2b1; font-size: 8px; }
         .quote-meta .row strong { font-weight: 600; font-variant-numeric: tabular-nums; }
 
         /* Bound as one block rather than two floating text columns, matching
@@ -344,15 +356,17 @@ export function QuotationDocument({
            matter how wide the label text is. */
         .info-card dl {
           margin: 0; display: grid; grid-template-columns: auto 1fr;
-          column-gap: 3mm; row-gap: 0.9mm; align-items: baseline;
+          column-gap: 2.5mm; row-gap: 1.1mm; align-items: baseline;
         }
         /* Labels are a quiet tag, not a peer of the value: smaller, uppercase,
            tracked and light. Previously label and value were 8.5px vs 9.5px in
            two greys, which is no hierarchy at all — the block read as one flat
            run of letters. Right-aligned so the gutter edge is straight. */
+        /* Sentence-case "Phone:" rather than a right-flushed uppercase tag —
+           reads as a typeset label/value pair instead of a data dump. */
         .info-card dt {
-          font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.06em;
-          color: #a3a9a5; font-weight: 600; text-align: right; white-space: nowrap;
+          font-size: 8.5px; color: #8b918d; font-weight: 500;
+          text-align: left; white-space: nowrap;
         }
         .info-card dd { margin: 0; font-size: 10px; color: #26302b; }
         .info-card dd.muted { color: #b6bcb8; }
@@ -562,6 +576,16 @@ export function QuotationDocument({
         /* Full-bleed inside its panel — the panel already provides the border
            and padding, so the table runs edge to edge and the total row can
            sit as a solid band. */
+        /* Page heading for the terms sheet — makes page 2 read as a
+           deliberate second section of the document rather than as the
+           remainder that did not fit on page 1. */
+        .page-title {
+          margin: 0 0 3mm; padding-bottom: 1.5mm;
+          border-bottom: 2px solid ${GOLD};
+          font-size: 13px; font-weight: 700; color: ${GREEN};
+          letter-spacing: 0.04em; text-transform: uppercase;
+        }
+
         /* Order summary rows: product, what you're getting, what it costs. */
         .sum-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
         .sum-table td { padding: 1.4mm 3mm; border-bottom: 1px solid #f0ebdf; }
@@ -618,9 +642,13 @@ export function QuotationDocument({
         .bank p {
           display: flex; gap: 2mm; margin: 0 0 0.6mm; font-size: 9px;
         }
+        /* Wider now that the labels read "Account Name:" rather than "NAME",
+           and sentence case rather than uppercase — a label that reads as a
+           word beside its value looks typeset; an uppercase tag looks like a
+           database column heading. */
         .bank .bank-label {
-          flex: 0 0 15mm; color: #9ca3af; font-size: 8px;
-          text-transform: uppercase; letter-spacing: 0.04em; padding-top: 0.3mm;
+          flex: 0 0 24mm; color: #8b918d; font-size: 8.5px;
+          letter-spacing: 0.01em; padding-top: 0.2mm;
         }
         .bank .upi {
           margin-top: 1mm; padding-top: 1.5mm;
@@ -664,20 +692,6 @@ export function QuotationDocument({
             letterhead band prints in the flow instead; the fixed header still
             paints there, so it is positioned to sit exactly within that band's
             own green area rather than clashing with it. */}
-        <div className="run-head" aria-hidden="true">
-          {/* eslint-disable-next-line @next/next/no-img-element -- print document renders outside next/image's optimization pipeline */}
-          <img src="/logo-mark.png" alt="" />
-          <div>
-            <div className="rh-name">ROYAL DOORS AND WINDOWS</div>
-            <div className="rh-sub">uPVC · Aluminium · WPC</div>
-          </div>
-          <div className="rh-right">
-            <div className="rh-qno">{withRevisionSuffix(quotation.quoteNo, quotation.revision)}</div>
-            {quotation.customer.name && <div className="rh-cust">{quotation.customer.name}</div>}
-          </div>
-        </div>
-
-
         <div className="band-header">
           <div className="brand">
             <div className="logo-mark">
@@ -685,24 +699,22 @@ export function QuotationDocument({
               <img src="/logo-mark.png" alt="" />
             </div>
             <div>
-              <div className="brand-name">
-                ROYAL
-                <small>DOORS AND WINDOWS</small>
-              </div>
-              {/* The "Premium uPVC · Aluminium · WPC" tagline was removed: it
-                  is marketing copy on a priced commercial document, and the
-                  gold contact band at the foot already carries the same
-                  positioning. */}
+              {/* Brand hierarchy: ROYAL UPVC is the name a customer recognises,
+                  with the trade line beneath it — rather than one long
+                  "ROYAL DOORS AND WINDOWS" run where nothing dominates. */}
+              <div className="brand-name">ROYAL UPVC</div>
+              <div className="brand-sub">DOORS AND WINDOWS</div>
             </div>
           </div>
           <div className="quote-meta">
+            <div className="doc-kind">QUOTATION</div>
             <div className="qno">{withRevisionSuffix(quotation.quoteNo, quotation.revision)}</div>
             <div className="row">
-              <span>Date</span>
+              <span>Date:</span>
               <strong>{formatDate(date)}</strong>
             </div>
             <div className="row">
-              <span>Valid till</span>
+              <span>Valid Until:</span>
               <strong>{formatDate(validUntil)}</strong>
             </div>
           </div>
@@ -727,19 +739,19 @@ export function QuotationDocument({
               <dl>
                 {quotation.customer.phone && (
                   <>
-                    <dt>Phone</dt>
+                    <dt>Phone:</dt>
                     <dd className="tabular">{quotation.customer.phone}</dd>
                   </>
                 )}
                 {quotation.customer.siteAddress && (
                   <>
-                    <dt>Site address</dt>
+                    <dt>Site Address:</dt>
                     <dd>{quotation.customer.siteAddress}</dd>
                   </>
                 )}
                 {quotation.customer.gstin && (
                   <>
-                    <dt>GSTIN</dt>
+                    <dt>GSTIN:</dt>
                     <dd className="ident">{quotation.customer.gstin}</dd>
                   </>
                 )}
@@ -750,20 +762,20 @@ export function QuotationDocument({
               <dl>
                 {quotation.customer.project ? (
                   <>
-                    <dt>Project</dt>
+                    <dt>Project:</dt>
                     <dd>{quotation.customer.project}</dd>
                   </>
                 ) : (
                   // Without this the card renders as a bare heading over empty
                   // space whenever no project was entered.
                   <>
-                    <dt>Project</dt>
+                    <dt>Project:</dt>
                     <dd className="muted">—</dd>
                   </>
                 )}
                 {quotation.customer.referredBy && (
                   <>
-                    <dt>Referred by</dt>
+                    <dt>Referred By:</dt>
                     <dd>{quotation.customer.referredBy}</dd>
                   </>
                 )}
@@ -771,7 +783,7 @@ export function QuotationDocument({
                     letterhead, so whose it is was never in question. */}
                 {quotation.gst.enabled && settings.gstin && (
                   <>
-                    <dt>GSTIN</dt>
+                    <dt>GSTIN:</dt>
                     <dd className="ident">{settings.gstin}</dd>
                   </>
                 )}
@@ -779,7 +791,7 @@ export function QuotationDocument({
                     prints in the letterhead band at the top of the page. */}
                 {preparedByName && (
                   <>
-                    <dt>Prepared by</dt>
+                    <dt>Prepared By:</dt>
                     <dd>{preparedByName}</dd>
                   </>
                 )}
@@ -973,8 +985,9 @@ export function QuotationDocument({
               item count, so the fit holds for a 1-item and a 50-item
               quotation alike. */}
           <div className="terms-page">
+            <h2 className="page-title">Specifications &amp; Commercial Terms</h2>
           <div className="avoid-break panel">
-            <h3>Specification &amp; Terms</h3>
+            <h3>Scope &amp; Warranty</h3>
             <div className="panel-body">
               <div className="spec-groups">
                 <div className="spec-group area-incl">
@@ -1097,38 +1110,38 @@ export function QuotationDocument({
                     would otherwise print bare labels with nothing after them. */}
                 {settings.bank.accountName && (
                   <p>
-                    <span className="bank-label">Name</span>
+                    <span className="bank-label">Account Name:</span>
                     {settings.bank.accountName}
                   </p>
                 )}
                 {settings.bank.bankName && (
                   <p>
-                    <span className="bank-label">Bank</span>
+                    <span className="bank-label">Bank:</span>
                     {settings.bank.bankName}
                   </p>
                 )}
                 {settings.bank.accountNo && (
                   <p>
-                    <span className="bank-label">A/c No</span>
+                    <span className="bank-label">A/C No:</span>
                     {settings.bank.accountNo}
                   </p>
                 )}
                 {settings.bank.ifsc && (
                   <p>
-                    <span className="bank-label">IFSC</span>
+                    <span className="bank-label">IFSC:</span>
                     {settings.bank.ifsc}
                   </p>
                 )}
                 {settings.bank.branch && (
                   <p>
-                    <span className="bank-label">Branch</span>
+                    <span className="bank-label">Branch:</span>
                     {settings.bank.branch}
                   </p>
                 )}
                 {/* UPI was configured in settings but never printed. */}
                 {(settings.bank.upiName || settings.bank.upiPhone) && (
                   <p className="upi">
-                    <span className="bank-label">UPI</span>
+                    <span className="bank-label">UPI:</span>
                     {[settings.bank.upiName, settings.bank.upiPhone].filter(Boolean).join(" · ")}
                   </p>
                 )}
@@ -1139,7 +1152,6 @@ export function QuotationDocument({
           {/* Signature and sign-off travel together: a signature block that
               breaks away from the closing line (or lands on a page of its own
               after the footer band) reads as an unfinished document. */}
-          <div className="tp-spacer" aria-hidden="true" />
           <div className="closing avoid-break">
             {/* Acceptance wording is deliberately a plain confirmation of what
                 is on this page — specifications, quantities and pricing. It
