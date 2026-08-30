@@ -112,6 +112,27 @@ export function QuotationDocument({
     quotation.items.filter((i) => i.pricingMode === "per_sqft").reduce((s, i) => s + i.totalAreaSqft, 0)
   );
 
+  /**
+   * Order summary by product type — how many units of each thing, and what
+   * they come to. Derived entirely from the quotation's own line items; it
+   * restates nothing the schedule doesn't already contain, but lets a customer
+   * check "so that's six sliding windows and a door" without reading 50 rows.
+   */
+  const productSummary = (() => {
+    const byProduct = new Map<string, { qty: number; amount: number; areaSqft: number }>();
+    for (const item of quotation.items) {
+      const key = item.description || item.productType;
+      const row = byProduct.get(key) ?? { qty: 0, amount: 0, areaSqft: 0 };
+      row.qty += item.qty;
+      row.amount += item.amount;
+      if (item.pricingMode === "per_sqft") row.areaSqft += item.totalAreaSqft;
+      byProduct.set(key, row);
+    }
+    return [...byProduct.entries()]
+      .map(([label, v]) => ({ label, ...v }))
+      .sort((a, b) => b.amount - a.amount);
+  })();
+
   // Computed by lib/pricing.ts, not here: a payment schedule that fails to
   // reconcile to the grand total is a money bug, and logic living inside a
   // render function cannot be unit-tested. See computePaymentStages().
@@ -227,10 +248,37 @@ export function QuotationDocument({
           .terms-page {
             break-before: page; page-break-before: always;
             break-inside: avoid; page-break-inside: avoid;
+            /* Claim the full printable height so the contact band lands at the
+               foot of the sheet and the page reads as a designed page rather
+               than a fragment that spilled over.
+
+               Sections keep their natural heights; one flexible spacer before
+               the closing block pushes the acceptance and sign-off to the
+               bottom, so the spare height collects in a single deliberate gap
+               instead of several ragged ones. Stretching the panels themselves
+               was tried and rejected — it opened voids INSIDE the bordered
+               boxes, which reads as a bug rather than as spacing.
+
+               A fixed height in mm rather than 100vh: viewport units are
+               unreliable in Chrome's paged output and overflowed onto an extra
+               page when tried. 297mm less the 13/11mm @page margins and the
+               contact band leaves this. */
+            height: 246mm;
+            display: flex;
+            flex-direction: column;
+            gap: 4mm;
           }
-          /* The first panel inside sits flush at the top of its new page —
-             its own top margin would otherwise push it down by 3mm. */
+          /* Boxes hug their own content; only the spacer flexes. */
+          .terms-page > * { flex: 0 0 auto; }
+          .terms-page .tp-spacer { flex: 1 1 auto; min-height: 0; }
+          /* The first panel sits flush at the top of its new page — its own
+             top margin would otherwise push it down. */
           .terms-page > .panel:first-child { margin-top: 0; }
+          /* Panels carry their own margins for the continuous on-screen view;
+             on paper the flex gap handles the rhythm, so drop them to avoid
+             doubling up. */
+          .terms-page > * { margin-top: 0; }
+
         }
         .content { padding: 3mm 14mm; flex: 1; }
         .band-header {
@@ -440,12 +488,13 @@ export function QuotationDocument({
            the conditions — so they read as three short scannable lists
            instead of one wall the eye slides off. */
         .spec-groups {
-          display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 2.5mm;
+          display: grid; gap: 3mm;
           /* Optional upgrades sits beside the two short columns rather than
              below all three: "What's included" runs ~6 lines while Warranty and
              Timeline run 1-2, leaving a tall void under them that the upgrades
              block now fills. Saves ~16mm on every quotation. */
-          grid-template-areas: "incl warr time" "incl upgr upgr";
+          grid-template-areas: "incl warr" "incl time" "upgr upgr";
+          grid-template-columns: 1fr 1fr;
           align-content: start;
           /* Stretch each box to its row so the three columns end on a common
              baseline instead of leaving ragged voids beneath the shorter
@@ -513,6 +562,17 @@ export function QuotationDocument({
         /* Full-bleed inside its panel — the panel already provides the border
            and padding, so the table runs edge to edge and the total row can
            sit as a solid band. */
+        /* Order summary rows: product, what you're getting, what it costs. */
+        .sum-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+        .sum-table td { padding: 1.4mm 3mm; border-bottom: 1px solid #f0ebdf; }
+        .sum-table tr:last-child td { border-bottom: none; }
+        .sum-name { color: #26302b; font-weight: 600; }
+        .sum-qty { color: #a3a9a5; font-size: 8.5px; white-space: nowrap; }
+        .sum-amt {
+          text-align: right; font-weight: 600; color: ${GREEN};
+          white-space: nowrap; font-variant-numeric: tabular-nums;
+        }
+
         /* Milestone list, not a table: number, what it is, and what it costs.
            The stage number anchors the sequence; the percentage sits under the
            label as supporting detail rather than competing with the amount. */
@@ -539,7 +599,11 @@ export function QuotationDocument({
         .pay-list .pay-total .pay-label { color: #fff; font-weight: 700; }
         .pay-list .pay-total .pay-amount { color: ${GOLD}; font-size: 10.5px; font-weight: 700; }
 
-        .pay-bank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; align-items: start; }
+        .pay-bank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; align-items: stretch; }
+        /* Both panels end on the same baseline — one card finishing 20mm above
+           its neighbour looked like a rendering fault. */
+        .pay-bank-grid > .panel { display: flex; flex-direction: column; }
+        .pay-bank-grid > .panel > .panel-body { flex: 1 1 auto; }
         /* When there is no payment scheme on the quotation the grid has a
            single child, which would otherwise sit in a half-width column with
            a large empty gap beside it. One child = one full-width column. */
@@ -963,6 +1027,30 @@ export function QuotationDocument({
               same page, not overleaf. */}
           {/* Side by side: neither block needs the full A4 width, and pairing
               them keeps "what you owe when" next to "where to send it". */}
+          {/* Order summary — only when it actually tells the reader something
+              the schedule doesn't: more than one product type, and fewer rows
+              than the schedule itself (otherwise it is the same table twice).
+              Derived from the line items; no new data, no invented figures. */}
+          {productSummary.length > 1 && productSummary.length < quotation.items.length && (
+            <div className="avoid-break panel">
+              <h3>Order summary</h3>
+              <table className="sum-table">
+                <tbody>
+                  {productSummary.map((row) => (
+                    <tr key={row.label}>
+                      <td className="sum-name">{row.label}</td>
+                      <td className="sum-qty">
+                        {row.qty} {row.qty === 1 ? "unit" : "units"}
+                        {row.areaSqft > 0 && ` · ${Math.round(row.areaSqft)} sqft`}
+                      </td>
+                      <td className="sum-amt">{formatINR(row.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           <div className="avoid-break pay-bank-grid">
             {paymentStages.length > 0 && (
               <div className="panel">
@@ -1051,6 +1139,7 @@ export function QuotationDocument({
           {/* Signature and sign-off travel together: a signature block that
               breaks away from the closing line (or lands on a page of its own
               after the footer band) reads as an unfinished document. */}
+          <div className="tp-spacer" aria-hidden="true" />
           <div className="closing avoid-break">
             {/* Acceptance wording is deliberately a plain confirmation of what
                 is on this page — specifications, quantities and pricing. It
