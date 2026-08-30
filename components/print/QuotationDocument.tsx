@@ -1,6 +1,6 @@
 import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel } from "@/lib/dimensions";
-import { formatINR } from "@/lib/money";
+import { formatINR, formatINRCompact } from "@/lib/money";
 import { computePaymentStages, effectiveRate, SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering";
@@ -105,6 +105,12 @@ export function QuotationDocument({
   // exclusion so a newly added Settings line always appears somewhere on the
   // document instead of being silently dropped.
   const additionalNotes = boiler.filter((line) => !groupedLines.includes(line));
+
+  // Only per_sqft items contribute a meaningful area; a per-piece door has a
+  // notional area that would inflate the headline figure if summed in.
+  const totalAreaSqft = Math.round(
+    quotation.items.filter((i) => i.pricingMode === "per_sqft").reduce((s, i) => s + i.totalAreaSqft, 0)
+  );
 
   // Computed by lib/pricing.ts, not here: a payment schedule that fails to
   // reconcile to the grand total is a money bug, and logic living inside a
@@ -212,7 +218,7 @@ export function QuotationDocument({
           .item-table thead { display: table-header-group; }
           .item-table tr { break-inside: avoid; page-break-inside: avoid; }
         }
-        .content { padding: 4mm 14mm; flex: 1; }
+        .content { padding: 3mm 14mm; flex: 1; }
         .band-header {
           background: linear-gradient(135deg, ${GREEN} 0%, ${GREEN_DARK} 100%);
           color: white;
@@ -262,7 +268,7 @@ export function QuotationDocument({
            cards are 86mm wide but hold 26-38mm of text. */
         .info-grid {
           display: grid; grid-template-columns: 1fr 1fr; gap: 6mm;
-          margin-top: 3mm; padding: 2.5mm 3mm;
+          margin-top: 2.5mm; padding: 2mm 3mm;
           background: #fcfbf7; border: 1px solid #ece5d5; border-radius: 3px;
         }
         .info-card h3 {
@@ -306,6 +312,27 @@ export function QuotationDocument({
         /* Dense product schedule table — one straightforward table rather
            than bordered cards, matching the agreed reference: thumbnail,
            description with specs inline, then size/qty/unit/rate/amount. */
+        /* Four headline figures in a row: how many, how big, product value and
+           the number that matters. Deliberately quiet — flat cells with a rule
+           between them, not four coloured cards, so it reads as a summary line
+           rather than a dashboard. */
+        .proj-summary {
+          display: grid; grid-template-columns: repeat(4, 1fr);
+          margin-top: 3mm; border: 1px solid #e6ddc4; border-radius: 3px;
+          background: #fff; overflow: hidden;
+        }
+        .ps-cell {
+          display: flex; flex-direction: column; gap: 0.4mm;
+          padding: 1.8mm 3mm; border-left: 1px solid #efe9db;
+        }
+        .ps-cell:first-child { border-left: none; }
+        .ps-val { font-size: 12px; font-weight: 700; color: ${GREEN}; font-variant-numeric: tabular-nums; }
+        .ps-lab { font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.07em; color: #a3a9a5; font-weight: 600; }
+        /* The grand total is the one figure the eye should land on. */
+        .ps-total { background: ${GREEN}; }
+        .ps-total .ps-val { color: ${GOLD}; font-size: 13px; }
+        .ps-total .ps-lab { color: #cfe0d5; }
+
         /* A fully ruled grid — every cell carries its own border, so the
            columns are visibly separated instead of numbers floating in
            whitespace with only a horizontal rule under each row. The outer
@@ -343,7 +370,7 @@ export function QuotationDocument({
         .item-specs .surcharge { color: #8a6d1f; font-weight: 600; }
         .rate-breakdown { color: #9ca3af; font-size: 8px; }
 
-        .totals-wrap { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; margin-top: 4mm; }
+        .totals-wrap { display: flex; justify-content: flex-end; align-items: flex-start; margin-top: 3.5mm; }
         .totals-summary { padding-top: 1mm; min-width: 60mm; }
         .totals-summary .sum-row {
           display: flex; justify-content: space-between; gap: 8mm;
@@ -354,15 +381,15 @@ export function QuotationDocument({
            gets a solid brand band rather than sharing the same weight as the
            subtotal lines above it. */
         .totals-box { width: 68mm; border: 1px solid #e6ddc4; border-radius: 3px; background: white; overflow: hidden; }
-        .totals-box .rows { padding: 2mm 4mm; }
-        .totals-box .row { display: flex; justify-content: space-between; font-size: 10px; padding: 1.5px 0; color: #4b5563; }
+        .totals-box .rows { padding: 1.6mm 4mm; }
+        .totals-box .row { display: flex; justify-content: space-between; font-size: 10px; padding: 0.8px 0; color: #4b5563; }
         .totals-box .grand {
           display: flex; justify-content: space-between; align-items: baseline;
           background: ${GREEN}; color: #fff; padding: 2mm 4mm;
         }
         .totals-box .grand span:first-child { font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: #cfe0d5; }
         .totals-box .grand span:last-child { font-size: 15px; font-weight: 700; color: ${GOLD}; }
-        .words { text-align: right; font-size: 9px; font-style: italic; color: #6b7280; margin-top: 2mm; }
+        .words { text-align: right; font-size: 9px; font-style: italic; color: #6b7280; margin-top: 1.2mm; }
 
         /* Deliberately small — a quick-glance strip, not a page of its own.
            Detail for each of these already lives below (Payment Schedule
@@ -384,7 +411,7 @@ export function QuotationDocument({
            they visually match the item table and totals box above. */
         .panel {
           border: 1px solid #e6ddc4; border-radius: 3px; background: white;
-          margin-top: 3.5mm; overflow: hidden;
+          margin-top: 3mm; overflow: hidden;
         }
         .panel > h3 {
           margin: 0; padding: 1.2mm 3mm;
@@ -400,6 +427,12 @@ export function QuotationDocument({
            instead of one wall the eye slides off. */
         .spec-groups {
           display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 2.5mm;
+          /* Optional upgrades sits beside the two short columns rather than
+             below all three: "What's included" runs ~6 lines while Warranty and
+             Timeline run 1-2, leaving a tall void under them that the upgrades
+             block now fills. Saves ~16mm on every quotation. */
+          grid-template-areas: "incl warr time" "incl upgr upgr";
+          align-content: start;
           /* Size each column to its own content. With the default stretch
              behaviour the one-line "Timeline and conditions" box was forced to
              the height of the six-line "What's included" box, wasting ~30mm of
@@ -410,6 +443,10 @@ export function QuotationDocument({
           border: 1px solid #efe9db; border-radius: 2px;
           background: #fcfbf7; padding: 2mm;
         }
+        .area-incl { grid-area: incl; }
+        .area-warr { grid-area: warr; }
+        .area-time { grid-area: time; }
+        .area-upgr { grid-area: upgr; }
         .spec-group h4 {
           margin: 0 0 1.5mm; padding-bottom: 1.2mm;
           border-bottom: 1px solid #eae3d2;
@@ -418,8 +455,8 @@ export function QuotationDocument({
         }
         .spec-group ul { margin: 0; padding: 0; list-style: none; }
         .spec-group li {
-          position: relative; padding-left: 3.2mm; margin-bottom: 0.9mm;
-          font-size: 8.5px; line-height: 1.35; color: #4b5563;
+          position: relative; padding-left: 3.2mm; margin-bottom: 0.7mm;
+          font-size: 8.5px; line-height: 1.3; color: #4b5563;
         }
         .spec-group li:last-child { margin-bottom: 0; }
         /* A rule-marker rather than a bullet: these are statements of fact,
@@ -433,7 +470,7 @@ export function QuotationDocument({
            charges the customer may actually incur, so the cream/gold
            treatment marks them as money rather than specification. */
         .extra-charges {
-          margin-top: 3mm; background: #fdf8e8;
+          background: #fdf8e8;
           border: 1px solid #eadfbc; border-left: 2.5px solid ${GOLD};
           border-radius: 2px; padding: 2mm 3mm;
         }
@@ -443,7 +480,6 @@ export function QuotationDocument({
         }
         .extra-charges ul {
           margin: 0; padding: 0; list-style: none;
-          columns: 2; column-gap: 6mm;
         }
         .extra-charges li {
           position: relative; padding-left: 3.2mm; margin-bottom: 1mm;
@@ -458,18 +494,31 @@ export function QuotationDocument({
         /* Full-bleed inside its panel — the panel already provides the border
            and padding, so the table runs edge to edge and the total row can
            sit as a solid band. */
-        .pay-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-        .pay-table td { padding: 1.3mm 3mm; border-bottom: 1px solid #f0ebdf; }
-        .pay-table tr:nth-child(even) td { background: #fbfaf6; }
-        .pay-table .pay-stage { color: #4b5563; }
-        .pay-table .pay-amount { text-align: right; font-weight: 600; color: #26302b; white-space: nowrap; }
-        /* The zebra rule targets tr:nth-child(even) and would otherwise
-           repaint the total row's background, hiding the white label. */
-        .pay-table .pay-total td, .pay-table tr.pay-total:nth-child(even) td {
-          border-bottom: none; background: ${GREEN};
-          font-weight: 700; color: #fff; padding-top: 2mm; padding-bottom: 2mm;
+        /* Milestone list, not a table: number, what it is, and what it costs.
+           The stage number anchors the sequence; the percentage sits under the
+           label as supporting detail rather than competing with the amount. */
+        .pay-list { list-style: none; margin: 0; padding: 0; font-size: 9.5px; }
+        .pay-list li {
+          display: flex; align-items: baseline; gap: 2.5mm;
+          padding: 1.2mm 3mm; border-bottom: 1px solid #f0ebdf;
         }
-        .pay-table .pay-total .pay-amount { color: ${GOLD}; font-size: 10.5px; }
+        .pay-idx {
+          flex: 0 0 auto; font-size: 8px; font-weight: 700; color: ${GOLD};
+          font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+        }
+        .pay-body { display: flex; flex-direction: column; gap: 0.3mm; flex: 1 1 auto; }
+        .pay-label { color: #26302b; font-weight: 600; }
+        .pay-pct { font-size: 7.5px; color: #a3a9a5; letter-spacing: 0.04em; }
+        .pay-amount {
+          flex: 0 0 auto; text-align: right; font-weight: 600; color: #26302b;
+          white-space: nowrap; font-variant-numeric: tabular-nums;
+        }
+        .pay-list .pay-total {
+          border-bottom: none; background: ${GREEN};
+          padding-top: 2mm; padding-bottom: 2mm;
+        }
+        .pay-list .pay-total .pay-label { color: #fff; font-weight: 700; }
+        .pay-list .pay-total .pay-amount { color: ${GOLD}; font-size: 10.5px; font-weight: 700; }
 
         .pay-bank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; align-items: start; }
         /* When there is no payment scheme on the quotation the grid has a
@@ -484,7 +533,7 @@ export function QuotationDocument({
            AND WINDOWS" wraps badly in two columns here, and a wrapped account
            number is worse than a slightly taller box. */
         .bank p {
-          display: flex; gap: 2mm; margin: 0 0 0.9mm; font-size: 9px;
+          display: flex; gap: 2mm; margin: 0 0 0.6mm; font-size: 9px;
         }
         .bank .bank-label {
           flex: 0 0 15mm; color: #9ca3af; font-size: 8px;
@@ -495,16 +544,29 @@ export function QuotationDocument({
           border-top: 1px dotted #e0d8c0;
         }
 
-        .closing { margin-top: 4mm; }
-        .signature { display: flex; justify-content: space-between; align-items: flex-end; }
-        .signature .sig-block { text-align: center; font-size: 9.5px; }
-        .signature .sig-space { height: 9mm; }
-        .signature .name { font-weight: 700; color: ${GREEN}; }
-        .thank-you { text-align: center; font-size: 9.5px; color: ${GOLD}; font-weight: 600; margin-top: 4mm; letter-spacing: 0.02em; }
+        .closing { margin-top: 3mm; }
+        /* Acceptance block: a short confirmation line, then three ruled fields
+           on one row (name/signature, date, authorised signatory). Ruled lines
+           rather than a tall empty box — the previous 12mm blank gap read as a
+           layout mistake rather than somewhere to sign. */
+        .acceptance {
+          border: 1px solid #e6ddc4; border-radius: 3px; background: #fff;
+          padding: 2.5mm 3mm;
+        }
+        .acceptance h3 {
+          margin: 0 0 1.2mm; font-size: 8px; font-weight: 700;
+          text-transform: uppercase; letter-spacing: 0.08em; color: ${GOLD};
+        }
+        .acc-text { margin: 0 0 2mm; font-size: 8.5px; color: #4b5563; line-height: 1.4; }
+        .signature { display: grid; grid-template-columns: 1.3fr 0.7fr 1.3fr; gap: 6mm; }
+        .sig-block { display: flex; flex-direction: column; gap: 1mm; }
+        .sig-rule { display: block; height: 0; border-bottom: 1px solid #c9c2ab; margin-top: 3.5mm; }
+        .sig-cap { font-size: 7.5px; color: #a3a9a5; letter-spacing: 0.04em; }
+        .thank-you { text-align: center; font-size: 9px; color: ${GOLD}; font-weight: 600; margin-top: 2.5mm; letter-spacing: 0.02em; }
 
         .band-footer {
-          margin-top: 4mm; background: ${GOLD}; color: ${GREEN_DARK};
-          padding: 2.2mm 14mm; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+          margin-top: 3mm; background: ${GOLD}; color: ${GREEN_DARK};
+          padding: 1.8mm 14mm; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
           font-size: 8.5px; font-weight: 600;
         }
       `}</style>
@@ -642,6 +704,28 @@ export function QuotationDocument({
             </div>
           </div>
 
+          {/* Project summary: the four figures a reader wants before working
+              through 14 line items. Every value is derived from the quotation's
+              own computed data — nothing is passed in or restated by hand. */}
+          <div className="proj-summary avoid-break">
+            <div className="ps-cell">
+              <span className="ps-val">{quotation.items.length}</span>
+              <span className="ps-lab">{quotation.items.length === 1 ? "Item" : "Items"}</span>
+            </div>
+            <div className="ps-cell">
+              <span className="ps-val">{totalAreaSqft.toLocaleString("en-IN")}</span>
+              <span className="ps-lab">Sq.ft</span>
+            </div>
+            <div className="ps-cell">
+              <span className="ps-val">{formatINRCompact(quotation.totals.subtotal)}</span>
+              <span className="ps-lab">Product value</span>
+            </div>
+            <div className="ps-cell ps-total">
+              <span className="ps-val">{formatINRCompact(quotation.totals.grandTotal)}</span>
+              <span className="ps-lab">Grand total</span>
+            </div>
+          </div>
+
           <table className="item-table">
             <thead>
               {/* Repeats on every printed page the table spans (see
@@ -739,26 +823,11 @@ export function QuotationDocument({
             {/* Summary occupies what was dead space to the left of the totals
                 box — gives the reader the headline figures in words and the
                 item/area counts without hunting back up the page. */}
-            <div className="totals-summary">
-              <div className="sum-row">
-                <span>Total items</span>
-                <strong>{quotation.items.length}</strong>
-              </div>
-              <div className="sum-row">
-                <span>Total area</span>
-                <strong>
-                  {quotation.items
-                    .filter((i) => i.pricingMode === "per_sqft")
-                    .reduce((s, i) => s + i.totalAreaSqft, 0)
-                    .toFixed(2)}{" "}
-                  sqft
-                </strong>
-              </div>
-              <div className="sum-row">
-                <span>Quotation valid till</span>
-                <strong>{formatDate(validUntil)}</strong>
-              </div>
-            </div>
+            {/* Nothing sits to the left of the totals box any more. Item and
+                area counts moved up into the Project Summary strip; the
+                validity date already prints twice (letterhead "Valid till" and
+                the quick-terms strip), and a lone line here left a ~30mm void
+                beside the totals. The box now right-aligns on its own. */}
             <div>
               <div className="totals-box">
                 <div className="rows">
@@ -806,53 +875,14 @@ export function QuotationDocument({
               No cancellation/installation-conditions card: nothing in
               settings or terms captures that today, and inventing wording
               here would be printing a commitment the business never made. */}
-          <div className="quick-terms avoid-break">
-            {quotation.terms.paymentScheme && (
-              <div className="quick-term">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                  <rect x="2.5" y="5.5" width="19" height="13" rx="1.5" />
-                  <path d="M2.5 9.5h19" strokeLinecap="round" />
-                </svg>
-                <div>
-                  <strong>Payment</strong>
-                  <span>{quotation.terms.paymentScheme.label}</span>
-                </div>
-              </div>
-            )}
-            {quotation.terms.workDuration && (
-              <div className="quick-term">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                  <rect x="3" y="4.5" width="18" height="16" rx="1.5" />
-                  <path d="M3 9h18M8 2.5v4M16 2.5v4" strokeLinecap="round" />
-                </svg>
-                <div>
-                  <strong>Timeline</strong>
-                  <span>
-                    {quotation.terms.workDuration.fromDays}-{quotation.terms.workDuration.toDays} days
-                  </span>
-                </div>
-              </div>
-            )}
-            <div className="quick-term">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M12 2.5l7.5 3v6c0 5-3.2 8.3-7.5 10-4.3-1.7-7.5-5-7.5-10v-6l7.5-3z" strokeLinejoin="round" />
-              </svg>
-              <div>
-                <strong>Warranty</strong>
-                <span>{quotation.terms.warrantyYears} years (frame)</span>
-              </div>
-            </div>
-            <div className="quick-term">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3.5 2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <div>
-                <strong>Validity</strong>
-                <span>{quotation.terms.validityDays} days</span>
-              </div>
-            </div>
-          </div>
+          {/* The quick-terms icon strip (Payment / Warranty / Validity) was
+              removed: every one of its three facts is already stated somewhere
+              more useful — the payment split in the Payment Schedule
+              milestones, the warranty in the Specification panel, the validity
+              date in the letterhead. It restated them in a 4-column grid
+              holding 3 items, costing ~13mm of a page that has none spare.
+              See spec 51: an element that answers none of the seven questions
+              on its own doesn't earn its space. */}
 
           {/* Single compact column — Terms, Charges, Payment Schedule, Bank
               Details stacked in that order, matching the agreed reference
@@ -866,7 +896,7 @@ export function QuotationDocument({
             <h3>Specification &amp; Terms</h3>
             <div className="panel-body">
               <div className="spec-groups">
-                <div className="spec-group">
+                <div className="spec-group area-incl">
                   <h4>What&apos;s included</h4>
                   <ul>
                     {specLines.map((line, i) => (
@@ -875,7 +905,7 @@ export function QuotationDocument({
                   </ul>
                 </div>
 
-                <div className="spec-group">
+                <div className="spec-group area-warr">
                   <h4>Warranty</h4>
                   <ul>
                     {coverageLines.map((line, i) => (
@@ -885,7 +915,7 @@ export function QuotationDocument({
                 </div>
 
                 {conditionLines.length > 0 && (
-                  <div className="spec-group">
+                  <div className="spec-group area-time">
                     <h4>Timeline &amp; conditions</h4>
                     <ul>
                       {conditionLines.map((line, i) => (
@@ -894,18 +924,20 @@ export function QuotationDocument({
                     </ul>
                   </div>
                 )}
-              </div>
 
-              {additionalNotes.length > 0 && (
-                <div className="extra-charges">
-                  <h4>Charges that may apply</h4>
-                  <ul>
-                    {additionalNotes.map((line, i) => (
-                      <li key={i}>{line}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                {/* Inside the grid, occupying the space left under the two
+                    short columns — see grid-template-areas above. */}
+                {additionalNotes.length > 0 && (
+                  <div className="extra-charges area-upgr">
+                    <h4>Optional upgrades</h4>
+                    <ul>
+                      {additionalNotes.map((line, i) => (
+                        <li key={i}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -918,20 +950,38 @@ export function QuotationDocument({
             {paymentStages.length > 0 && (
               <div className="panel">
                 <h3>Payment Schedule</h3>
-                <table className="pay-table">
-                  <tbody>
-                    {paymentStages.map((stage, i) => (
-                      <tr key={i}>
-                        <td className="pay-stage">{stage.text.replace(/\.$/, "")}</td>
-                        <td className="pay-amount">{stage.amount === null ? "—" : formatINR(stage.amount)}</td>
-                      </tr>
-                    ))}
-                    <tr className="pay-total">
-                      <td>Total</td>
-                      <td className="pay-amount">{formatINR(quotation.totals.grandTotal)}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                {/* Numbered milestones rather than a plain two-column table:
+                    the customer is reading a sequence of events ("what do I pay
+                    and when"), so the stage number and the percentage carry the
+                    structure and the rupee figure is the answer. */}
+                <ol className="pay-list">
+                  {paymentStages.map((stage, i) => {
+                    // Split "50% advance." into its percentage and its label so
+                    // each can be styled for what it is. Falls back to the raw
+                    // text when a configured step carries no percentage.
+                    // "60% advance." -> "Advance". Stripping the leading
+                    // percentage leaves a lowercase fragment, so the first
+                    // letter is restored — these read as milestone names.
+                    const stripped = stage.text.replace(/^\s*\d+(?:\.\d+)?\s*%\s*/, "").replace(/\.$/, "").trim();
+                    const label = stripped ? stripped.charAt(0).toUpperCase() + stripped.slice(1) : "";
+                    return (
+                      <li key={i}>
+                        <span className="pay-idx">{String(i + 1).padStart(2, "0")}</span>
+                        <span className="pay-body">
+                          <span className="pay-label">{label || stage.text.replace(/\.$/, "")}</span>
+                          {stage.percent !== null && <span className="pay-pct">{stage.percent}% of total</span>}
+                        </span>
+                        <span className="pay-amount">{stage.amount === null ? "—" : formatINR(stage.amount)}</span>
+                      </li>
+                    );
+                  })}
+                  <li className="pay-total">
+                    <span className="pay-body">
+                      <span className="pay-label">Total</span>
+                    </span>
+                    <span className="pay-amount">{formatINR(quotation.totals.grandTotal)}</span>
+                  </li>
+                </ol>
               </div>
             )}
 
@@ -985,19 +1035,34 @@ export function QuotationDocument({
               breaks away from the closing line (or lands on a page of its own
               after the footer band) reads as an unfinished document. */}
           <div className="closing avoid-break">
-            <div className="signature">
-              <div className="sig-block">
-                <div className="sig-space" />
-                <p>Customer Signature</p>
-              </div>
-              <div className="sig-block">
-                <p>For {settings.companyName}</p>
-                <div className="sig-space" />
-                <p className="name">Authorised Signatory</p>
+            {/* Acceptance wording is deliberately a plain confirmation of what
+                is on this page — specifications, quantities and pricing. It
+                makes no warranty, cancellation or liability claim, because no
+                such wording has been approved by the business. Anything
+                stronger has to come from them, not from here. */}
+            <div className="acceptance">
+              <h3>Customer acceptance</h3>
+              <p className="acc-text">
+                I/We have reviewed the specifications, quantities and pricing set out in this quotation and accept
+                them as stated.
+              </p>
+              <div className="signature">
+                <div className="sig-block">
+                  <span className="sig-rule" />
+                  <span className="sig-cap">Customer name &amp; signature</span>
+                </div>
+                <div className="sig-block sig-date">
+                  <span className="sig-rule" />
+                  <span className="sig-cap">Date</span>
+                </div>
+                <div className="sig-block">
+                  <span className="sig-rule" />
+                  <span className="sig-cap">For {settings.companyName} · Authorised signatory</span>
+                </div>
               </div>
             </div>
 
-            <p className="thank-you">Thank you for choosing Royal Doors and Windows.</p>
+            <p className="thank-you">Thank you for choosing {settings.companyName}.</p>
           </div>
         </div>
 
