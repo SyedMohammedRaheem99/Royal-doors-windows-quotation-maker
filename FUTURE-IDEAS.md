@@ -31,6 +31,41 @@ default was given — confirmed explicitly as the rule to use.
   charge (confirmed as a flat ₹1500, but not yet wired into the product/surcharge as its own line —
   currently just recorded here as a number, not implemented in `lib/pricing.ts` or the rate card).
 
+## Quotation document optimization — what was deferred and why
+
+A full pass was made over the printed quotation (structure, typography,
+pagination, page numbering, acceptance block). These items from that brief were
+deliberately NOT built, each for a stated reason rather than for lack of time:
+
+- **Premium cover page.** Explicitly removed earlier at the client's own
+  instruction ("we are making things too complicated") in favour of a plain
+  single-document layout matching their reference. Re-adding it would reverse
+  that decision and add a page to every quotation. Needs the client to change
+  their mind, not a code change.
+- **Multi-tier warranty (profile / glass / hardware / installation).** Still
+  blocked on the business stating what it actually warrants per component. The
+  stated terms today are 15 years on the frame and NO warranty on glass, mesh or
+  hardware — printing a four-tier table would imply coverage that does not
+  exist. See the existing "Multi-tier warranty" entry above.
+- **Legal acceptance wording.** The acceptance block prints a plain confirmation
+  of specifications, quantities and pricing. Anything stronger — cancellation
+  terms, liability, dispute resolution — has to be supplied and approved by the
+  business; it must not be drafted here.
+- **"Professional installation" as an inclusion.** Not present in the client's
+  configured terms. Adding it would be inventing a commitment.
+- **Discounts, quotation status workflow, category grouping, room-wise
+  grouping, WhatsApp/email send, customer web quotation.** All separate
+  features rather than document changes. Discounts in particular touch the
+  money core and are covered by the "Discounts" entry above.
+
+**Reduced-borders table style.** A "minimal vertical borders, avoid an
+Excel look" direction was raised, but the client had specifically asked for the
+opposite ("make it rows and columns properly") and the fully ruled grid was
+built to that instruction. The ruled version was kept. Worth re-confirming with
+them if the question comes up again.
+
+---
+
 ## Tax invoicing — hidden from the nav, not removed
 
 The whole invoicing feature (raise a GST tax invoice from an approved quotation, its own
