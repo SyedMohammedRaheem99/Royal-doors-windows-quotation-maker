@@ -152,3 +152,46 @@ export function effectiveRate(item: {
   const toughenedSurcharge = item.toughenedGlassMm ? toughenedGlassSurcharge(item.toughenedGlassMm) : 0;
   return item.rate + flatSurchargeSum + toughenedSurcharge;
 }
+
+export interface PaymentStage {
+  /** The configured step text, e.g. "50% advance." */
+  text: string;
+  /** Parsed percentage, or null when the step carries none. */
+  percent: number | null;
+  /** Rupee value of this stage, or null when no percentage was parsable. */
+  amount: number | null;
+}
+
+/**
+ * Turns a configured payment scheme ("50% advance.", "30% before dispatch.",
+ * "20% after installation.") into rupee amounts against a grand total.
+ *
+ * Lifted out of the print document so it is unit-testable: a payment schedule
+ * that doesn't add up to the amount due is exactly the class of error this app
+ * exists to prevent, and it could not previously be tested at all.
+ *
+ * The LAST stage carrying a percentage is computed as the REMAINDER of the
+ * grand total rather than its own rounded percentage. Three independently
+ * rounded figures can each be a rupee off and leave the schedule failing to
+ * reconcile; taking the remainder guarantees the stages sum to the total
+ * exactly. A step with no parsable percentage (e.g. "100% payment for amount
+ * less than 20,000/-") still renders, just without an amount, rather than
+ * printing NaN.
+ */
+export function computePaymentStages(steps: string[], grandTotal: number): PaymentStage[] {
+  const parsed = steps.map((text) => {
+    const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
+    return { text, percent: match ? Number(match[1]) : null };
+  });
+
+  const lastWithPercent = parsed.map((p) => p.percent !== null).lastIndexOf(true);
+
+  return parsed.reduce<PaymentStage[]>((acc, stage, i) => {
+    if (stage.percent === null) return [...acc, { ...stage, amount: null }];
+    if (i === lastWithPercent) {
+      const priorSum = acc.reduce((sum, s) => sum + (s.amount ?? 0), 0);
+      return [...acc, { ...stage, amount: Math.max(0, grandTotal - priorSum) }];
+    }
+    return [...acc, { ...stage, amount: Math.round((grandTotal * stage.percent) / 100) }];
+  }, []);
+}

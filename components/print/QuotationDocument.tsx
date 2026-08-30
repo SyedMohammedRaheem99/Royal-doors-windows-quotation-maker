@@ -1,7 +1,7 @@
 import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel } from "@/lib/dimensions";
 import { formatINR } from "@/lib/money";
-import { effectiveRate, SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
+import { computePaymentStages, effectiveRate, SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering";
 import type { Quotation, Settings } from "@/models/schemas";
@@ -106,45 +106,13 @@ export function QuotationDocument({
   // document instead of being silently dropped.
   const additionalNotes = boiler.filter((line) => !groupedLines.includes(line));
 
-  /**
-   * Payment stages with a rupee value against each, so the customer doesn't
-   * have to work out what "30% before dispatch" actually costs.
-   *
-   * The percentage is parsed out of the step text (the seeded schemes all read
-   * "60% advance."). A step with no parsable percentage — e.g. "100% payment
-   * for amount less than 20,000/-" — still renders, just without an amount,
-   * rather than printing NaN.
-   *
-   * The LAST stage carrying an amount is the remainder of the grand total, not
-   * its own rounded percentage: three individually-rounded figures can drift a
-   * rupee or two off the total, and a payment schedule that doesn't add up to
-   * the amount due is exactly the kind of error this app exists to prevent.
-   */
-  const paymentStages = (() => {
-    const steps = quotation.terms.paymentScheme?.steps ?? [];
-    const total = quotation.totals.grandTotal;
-    const parsed = steps.map((text) => {
-      const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
-      return { text, percent: match ? Number(match[1]) : null };
-    });
-
-    const lastWithPercent = parsed.map((p) => p.percent !== null).lastIndexOf(true);
-
-    // Built with reduce rather than a mutable running total inside map —
-    // reassigning a closed-over variable during render is unsafe under the
-    // React Compiler (and the linter rejects it).
-    return parsed.reduce<Array<{ text: string; percent: number | null; amount: number | null }>>(
-      (acc, stage, i) => {
-        if (stage.percent === null) return [...acc, { ...stage, amount: null }];
-        if (i === lastWithPercent) {
-          const priorSum = acc.reduce((sum, s) => sum + (s.amount ?? 0), 0);
-          return [...acc, { ...stage, amount: Math.max(0, total - priorSum) }];
-        }
-        return [...acc, { ...stage, amount: Math.round((total * stage.percent) / 100) }];
-      },
-      []
-    );
-  })();
+  // Computed by lib/pricing.ts, not here: a payment schedule that fails to
+  // reconcile to the grand total is a money bug, and logic living inside a
+  // render function cannot be unit-tested. See computePaymentStages().
+  const paymentStages = computePaymentStages(
+    quotation.terms.paymentScheme?.steps ?? [],
+    quotation.totals.grandTotal
+  );
 
   return (
     <>
@@ -171,7 +139,7 @@ export function QuotationDocument({
         /* The running letterhead/footer only exist on paper. On screen the
            full band-header is already visible at the top, so showing these
            too would duplicate it. */
-        .run-head, .run-foot { display: none; }
+        .run-head { display: none; }
         /* Only meaningful on a continued printed page; hidden on screen and
            on page 1 where the full letterhead is directly above. */
         .continued-id { display: none; }
@@ -191,8 +159,27 @@ export function QuotationDocument({
              the running footer's 10mm plus clearance. Every extra millimetre
              here is millimetres taken off every page, so these are kept tight
              rather than round. */
-          @page { margin: 13mm 0 11mm; }
-          @page :first { margin: 0 0 11mm; }
+          /* Page identity and numbering live in the @page margin boxes, NOT in
+             a position:fixed element. Verified by decoding the generated PDF's
+             own text: counter(page)/counter(pages) inside a fixed element
+             renders literally "0 of 0" on every page in Chrome's PDF output,
+             while the same counters in a margin box resolve correctly and
+             differ per page. This is why the earlier running-footer attempt
+             could never show a page number. */
+          @page {
+            margin: 13mm 14mm 11mm;
+            @bottom-left {
+              content: "${settings.companyName} · ${withRevisionSuffix(quotation.quoteNo, quotation.revision)}";
+              font-size: 7.5pt;
+              color: #6b7280;
+            }
+            @bottom-right {
+              content: "Page " counter(page) " of " counter(pages);
+              font-size: 7.5pt;
+              color: #6b7280;
+            }
+          }
+          @page :first { margin: 0 14mm 11mm; }
 
           /* A real repeating letterhead on every continued page: logo, company
              name and the quote number, so page 2+ is identifiable on its own
@@ -218,16 +205,6 @@ export function QuotationDocument({
           .run-head .rh-qno { font-size: 10px; font-weight: 700; color: ${GOLD}; }
           .run-head .rh-cust { font-size: 7.5px; color: #cfe0d5; }
 
-          /* Anchored into the bottom @page margin (bottom: -11mm matches the
-             reserved strip), not at bottom: 0 — at 0 it painted over the gold
-             contact band, which is the last element in the flow. */
-          .run-foot {
-            display: flex; position: fixed; left: 0; right: 0; bottom: -11mm;
-            align-items: center; padding: 0 14mm; height: 10mm;
-            background: ${CREAM};
-            font-size: 8px; color: #6b7280;
-          }
-          .run-foot .rf-right { margin-left: auto; }
 
           /* Repeat the schedule's column headings on every page the table
              spans, so a continued table is still readable. Chrome reliably
@@ -555,12 +532,6 @@ export function QuotationDocument({
           </div>
         </div>
 
-        <div className="run-foot" aria-hidden="true">
-          <span>
-            {settings.companyName} · {withRevisionSuffix(quotation.quoteNo, quotation.revision)}
-          </span>
-          <span className="rf-right">{settings.phone}</span>
-        </div>
 
         <div className="band-header">
           <div className="brand">

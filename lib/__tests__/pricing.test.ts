@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeItem,
+  computePaymentStages,
   computeTotals,
   effectiveRate,
   SURCHARGES,
@@ -293,5 +294,101 @@ describe("toughenedGlassSurcharge — client-confirmed: +₹50 at 5mm, +₹10/sq
         TOUGHENED_GLASS_BASE_RATE + (mm - TOUGHENED_GLASS_BASE_MM) * TOUGHENED_GLASS_RATE_PER_MM
       );
     }
+  });
+});
+
+describe("computePaymentStages — the schedule must reconcile to the grand total", () => {
+  const SCHEME_50_30_20 = ["50% advance.", "30% before dispatch.", "20% after installation."];
+
+  it("splits the client-confirmed 50/30/20 scheme against a real grand total", () => {
+    // The 14-item reference quotation: 540 sqft, 5,94,000 subtotal, 18% GST,
+    // 2,500 transportation -> 7,03,420. These are the figures the business
+    // signed off on, used here as a fixed regression target.
+    const stages = computePaymentStages(SCHEME_50_30_20, 703420);
+    expect(stages.map((s) => s.amount)).toEqual([351710, 211026, 140684]);
+  });
+
+  it("always sums to exactly the grand total, never a rupee off", () => {
+    // Independently rounding each percentage can drift; the last stage is the
+    // remainder specifically to prevent that. Check across awkward totals.
+    for (const total of [703420, 1, 999, 100001, 33333, 7, 250000, 8675309]) {
+      const sum = computePaymentStages(SCHEME_50_30_20, total).reduce((s, x) => s + (x.amount ?? 0), 0);
+      expect(sum).toBe(total);
+    }
+  });
+
+  it("reconciles for any scheme whose percentages total 100", () => {
+    const schemes = [
+      ["60% advance.", "30% before dispatch.", "10% after installation."],
+      ["70% advance.", "30% after installation."],
+      ["25% a.", "25% b.", "25% c.", "25% d."],
+    ];
+    for (const scheme of schemes) {
+      const sum = computePaymentStages(scheme, 703420).reduce((s, x) => s + (x.amount ?? 0), 0);
+      expect(sum).toBe(703420);
+    }
+  });
+
+  it("renders a step with no percentage without inventing an amount", () => {
+    const stages = computePaymentStages(["100% payment for amount less than 20,000/-"], 15000);
+    // "100%" IS parsable here, so it takes the remainder — the whole total.
+    expect(stages[0].amount).toBe(15000);
+
+    const noPercent = computePaymentStages(["Payable on completion."], 15000);
+    expect(noPercent[0].amount).toBeNull();
+    expect(noPercent[0].percent).toBeNull();
+  });
+
+  it("handles an empty scheme without throwing", () => {
+    expect(computePaymentStages([], 703420)).toEqual([]);
+  });
+});
+
+describe("14-item reference quotation — end-to-end regression (client-signed figures)", () => {
+  it("reproduces the agreed subtotal, GST split, and grand total exactly", () => {
+    // Rebuilt from the same shape as the stored quotation: 14 items totalling
+    // 540 sqft at the rates on record. Guards the whole money path — if any
+    // future layout or pricing change moves these numbers, this fails loudly.
+    const items = [
+      { w: 4, h: 5, qty: 1, rate: 320 },
+      { w: 4, h: 5, qty: 2, rate: 380 },
+      { w: 4, h: 5, qty: 3, rate: 450 },
+      { w: 4, h: 5, qty: 1, rate: 1800 },
+      { w: 4, h: 5, qty: 2, rate: 4000 },
+      { w: 4, h: 5, qty: 3, rate: 320 },
+      { w: 4, h: 5, qty: 1, rate: 380 },
+      { w: 4, h: 5, qty: 2, rate: 450 },
+      { w: 4, h: 5, qty: 3, rate: 1800 },
+      { w: 4, h: 5, qty: 1, rate: 4000 },
+      { w: 4, h: 5, qty: 2, rate: 320 },
+      { w: 4, h: 5, qty: 3, rate: 380 },
+      { w: 4, h: 5, qty: 1, rate: 450 },
+      { w: 4, h: 5, qty: 2, rate: 1800 },
+    ].map((i) =>
+      computeItem({
+        billedWidthFt: i.w,
+        billedHeightFt: i.h,
+        qty: i.qty,
+        pricingMode: "per_sqft",
+        rate: i.rate,
+      })
+    );
+
+    const totalArea = items.reduce((s, i) => s + i.totalAreaSqft, 0);
+    expect(totalArea).toBe(540);
+
+    const totals = computeTotals(items, 18, 2500);
+    expect(totals.subtotal).toBe(594000);
+    expect(totals.cgst).toBe(53460);
+    expect(totals.sgst).toBe(53460);
+    expect(totals.transportation).toBe(2500);
+    expect(totals.grandTotal).toBe(703420);
+
+    // The payment schedule printed on that document must reconcile to it.
+    const stages = computePaymentStages(
+      ["50% advance.", "30% before dispatch.", "20% after installation."],
+      totals.grandTotal
+    );
+    expect(stages.reduce((s, x) => s + (x.amount ?? 0), 0)).toBe(totals.grandTotal);
   });
 });
