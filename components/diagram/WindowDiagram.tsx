@@ -143,14 +143,32 @@ function HingeTriangle({ r, side }: { r: Rect; side: "left" | "right" | "top" })
   );
 }
 
+/**
+ * Exhaust-fan cutout on a ventilator. Sized off the rect it sits in rather
+ * than a fixed radius, so it stays legible on both a 2x2ft ventilator and a
+ * larger one instead of shrinking into an unreadable dot.
+ */
 function FanPointMarker({ r }: { r: Rect }) {
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
+  const radius = Math.max(6, Math.min(r.w, r.h) / 2 - 4);
+  const blade = radius * 0.62;
   return (
     <g stroke={STROKE} strokeWidth={1} fill="none">
-      <circle cx={cx} cy={cy} r={7} />
-      <line x1={cx - 5} y1={cy} x2={cx + 5} y2={cy} />
-      <line x1={cx} y1={cy - 5} x2={cx} y2={cy + 5} />
+      <circle cx={cx} cy={cy} r={radius} />
+      <circle cx={cx} cy={cy} r={radius * 0.22} fill={STROKE} stroke="none" />
+      {[0, 90, 180, 270].map((deg) => {
+        const rad = (deg * Math.PI) / 180;
+        return (
+          <line
+            key={deg}
+            x1={cx + Math.cos(rad) * radius * 0.22}
+            y1={cy + Math.sin(rad) * radius * 0.22}
+            x2={cx + Math.cos(rad) * blade}
+            y2={cy + Math.sin(rad) * blade}
+          />
+        );
+      })}
     </g>
   );
 }
@@ -360,10 +378,27 @@ function renderByType(
 
     case "ventilator": {
       const inner = inset(frame, 3);
+      // A ventilator is not a small fixed window — it reads as one only if
+      // drawn as a bare glass box, which is what it used to be here. The plain
+      // unit is a louvred top-of-wall vent.
+      if (!fanPoint) {
+        return <LouverFill r={inner} />;
+      }
+      // With a fan point, the client's build is: glass and the fan side by side
+      // across the top, louvres along the bottom. Top row is split so the fan
+      // sits on the right and fixed glass on the left.
+      const topH = inner.h * 0.58;
+      const topRow: Rect = { ...inner, h: topH };
+      const bottomRow: Rect = { x: inner.x, y: inner.y + topH, w: inner.w, h: inner.h - topH };
+      const [glassCell, fanCell] = splitColumns(topRow, 2);
       return (
         <g>
-          <GlassFill r={inner} />
-          {fanPoint && <FanPointMarker r={inner} />}
+          <GlassFill r={glassCell} />
+          <GlassFill r={fanCell} />
+          <FanPointMarker r={fanCell} />
+          <Mullion x={fanCell.x} y1={topRow.y} y2={topRow.y + topRow.h} />
+          <HorizontalRail y={bottomRow.y} x1={frame.x} x2={frame.x + frame.w} />
+          <LouverFill r={bottomRow} />
         </g>
       );
     }
@@ -428,6 +463,122 @@ function renderByType(
       const kinds: ColumnKind[] = Array(n).fill("glass");
       const openings: Opening[] = Array(n).fill("slideH");
       return <Columns frame={frame} kinds={kinds} openings={openings} meshPatternId={meshPatternId} />;
+    }
+
+    // A single openable leaf: one glazed panel, hinged on one side. Distinct
+    // from french_door (two leaves) — these were previously the same drawing.
+    case "openable_door_single": {
+      const leaf = inset(frame, 3);
+      return (
+        <g>
+          <GlassFill r={leaf} />
+          <HingeTriangle r={leaf} side={handing === "right" ? "right" : "left"} />
+          <HandleMarker r={leaf} atRight={handing !== "right"} />
+        </g>
+      );
+    }
+
+    // Two leaves meeting at a centre mullion, hinged on opposite outer edges.
+    case "openable_door_double": {
+      const cols = splitColumns(frame, 2);
+      const left = inset(cols[0], 3);
+      const right = inset(cols[1], 3);
+      return (
+        <g>
+          <GlassFill r={left} />
+          <GlassFill r={right} />
+          <Mullion x={cols[1].x} y1={frame.y} y2={frame.y + frame.h} />
+          <HingeTriangle r={left} side="left" />
+          <HingeTriangle r={right} side="right" />
+        </g>
+      );
+    }
+
+    // A fixed glazed screen divided by vertical mullions — no opening leaf, so
+    // no hinge or slide marker. Panel count follows the width.
+    case "partition": {
+      const n = panels ?? Math.max(2, Math.min(4, Math.round(frame.w / 46)));
+      const cols = splitColumns(frame, n);
+      return (
+        <g>
+          {cols.map((c, i) => (
+            <g key={i}>
+              <GlassFill r={inset(c, 3)} />
+              {i > 0 && <Mullion x={c.x} y1={frame.y} y2={frame.y + frame.h} />}
+            </g>
+          ))}
+        </g>
+      );
+    }
+
+    // Concertina leaves: several narrow panels with alternating fold hinges.
+    case "foldable_door":
+    case "foldable_window": {
+      const n = panels ?? 4;
+      const cols = splitColumns(frame, n);
+      return (
+        <g>
+          {cols.map((c, i) => (
+            <g key={i}>
+              <GlassFill r={inset(c, 2)} />
+              {i > 0 && <Mullion x={c.x} y1={frame.y} y2={frame.y + frame.h} />}
+              <HingeTriangle r={inset(c, 2)} side={i % 2 === 0 ? "left" : "right"} />
+            </g>
+          ))}
+        </g>
+      );
+    }
+
+    // A frame only — no leaf, no glazing. Drawn as the profile outline so it
+    // cannot be mistaken for the door that hangs in it.
+    case "door_frame": {
+      const jamb = Math.max(3, Math.min(frame.w, frame.h) * 0.09);
+      return (
+        <g>
+          <rect
+            x={frame.x + jamb}
+            y={frame.y + jamb}
+            width={Math.max(0, frame.w - jamb * 2)}
+            height={Math.max(0, frame.h - jamb)}
+            fill="#ffffff"
+            stroke={STROKE}
+            strokeWidth={1}
+          />
+          <rect x={frame.x} y={frame.y} width={frame.w} height={jamb} fill={WOOD_FILL} stroke={STROKE} strokeWidth={1} />
+          <rect x={frame.x} y={frame.y} width={jamb} height={frame.h} fill={WOOD_FILL} stroke={STROKE} strokeWidth={1} />
+          <rect
+            x={frame.x + frame.w - jamb}
+            y={frame.y}
+            width={jamb}
+            height={frame.h}
+            fill={WOOD_FILL}
+            stroke={STROKE}
+            strokeWidth={1}
+          />
+        </g>
+      );
+    }
+
+    // Double-glazed unit: two panes with the sealed cavity between them, which
+    // is the whole point of the product and what a plain rectangle hid.
+    case "dgu_glass": {
+      const outerPane = inset(frame, 3);
+      const innerPane = inset(frame, 7);
+      return (
+        <g>
+          <GlassFill r={outerPane} />
+          <rect
+            x={innerPane.x}
+            y={innerPane.y}
+            width={innerPane.w}
+            height={innerPane.h}
+            fill="none"
+            stroke={STROKE}
+            strokeWidth={1}
+            strokeDasharray="3 2"
+          />
+        </g>
+      );
     }
 
     default:

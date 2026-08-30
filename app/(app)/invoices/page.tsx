@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { listInvoicesFor } from "@/lib/invoices";
 import { Pagination } from "@/components/ui/Pagination";
 
@@ -12,7 +12,7 @@ export default async function InvoicesListPage({
 }) {
   const { q, page: pageParam } = await searchParams;
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) redirect("/login");
 
   const page = Math.max(1, Number(pageParam) || 1);
@@ -34,7 +34,7 @@ export default async function InvoicesListPage({
         />
       </form>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white md:block">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
             <tr>
@@ -72,6 +72,33 @@ export default async function InvoicesListPage({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-2 md:hidden">
+        {invoices.map((inv) => (
+          <Link
+            key={inv._id}
+            href={`/invoices/${inv._id}`}
+            className="block rounded-lg border border-neutral-200 bg-white p-3 hover:bg-neutral-50"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-[#0f3d2e]">{inv.invoiceNo}</span>
+              <span className="shrink-0 text-sm font-medium text-neutral-900">
+                ₹{inv.totals.grandTotal.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <p className="mt-1 truncate text-sm text-neutral-700">{inv.buyer.name}</p>
+            <p className="mt-0.5 text-xs text-neutral-500">
+              {inv.quoteNo} · {new Date(inv.date).toLocaleDateString("en-IN")} ·{" "}
+              {inv.supplyType === "intra_state" ? "CGST + SGST" : "IGST"}
+            </p>
+          </Link>
+        ))}
+        {invoices.length === 0 && (
+          <p className="rounded-lg border border-neutral-200 bg-white px-4 py-8 text-center text-sm text-neutral-400">
+            No invoices yet — raise one from an approved quotation.
+          </p>
+        )}
       </div>
 
       <Pagination page={page} hasMore={hasMore} basePath="/invoices" searchParams={{ q }} />

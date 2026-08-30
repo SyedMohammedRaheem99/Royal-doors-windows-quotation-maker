@@ -21,6 +21,8 @@ export interface BuilderItem {
   rate: number; // snapshotted from the rate card at add-time, editable
   specs: ItemSpecs;
   surcharges: string[]; // keys into SURCHARGES
+  /** Priced separately from `surcharges` — see lib/pricing.ts's toughenedGlassSurcharge(). */
+  toughenedGlassMm?: number;
   remarks: string;
 }
 

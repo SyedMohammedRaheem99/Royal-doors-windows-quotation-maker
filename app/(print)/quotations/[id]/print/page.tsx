@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { settings as settingsCollection } from "@/lib/collections";
 import { loadQuotationFor } from "@/lib/quotations";
+import { getPreparedByName } from "@/lib/users";
 import { QuotationDocument } from "@/components/print/QuotationDocument";
 import type { Quotation, Settings } from "@/models/schemas";
 
@@ -11,7 +12,7 @@ export default async function PrintQuotationPage({ params }: { params: Promise<{
 
   // proxy.ts already protects /quotations/:path*; loadQuotationFor additionally
   // enforces ownership, so a sales user can't print another rep's quotation.
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) notFound();
 
   const [loaded, settingsCol] = await Promise.all([loadQuotationFor(id, actor), settingsCollection()]);
@@ -20,10 +21,12 @@ export default async function PrintQuotationPage({ params }: { params: Promise<{
   const settingsDoc = await settingsCol.findOne({});
   if (!settingsDoc) notFound();
 
+  const preparedByName = await getPreparedByName(loaded.data.createdBy);
+
   // JSON round-trip strips Mongo's ObjectId/Date instances into plain
   // strings before crossing into the (partly client) component tree below.
   const quotation = JSON.parse(JSON.stringify(loaded.data)) as Quotation;
   const settings = JSON.parse(JSON.stringify(settingsDoc)) as Settings;
 
-  return <QuotationDocument quotation={quotation} settings={settings} />;
+  return <QuotationDocument quotation={quotation} settings={settings} preparedByName={preparedByName} />;
 }

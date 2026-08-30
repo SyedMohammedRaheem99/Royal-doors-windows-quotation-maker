@@ -4,17 +4,22 @@
 //
 // Usage:
 //   npm run test:e2e -- admin@test.local AdminPass123 sales@test.local SalesPass123
+//
+// Optionally append super-admin credentials to also run the three-tier
+// hierarchy suite, which needs all three roles:
+//   npm run test:e2e -- <adminEmail> <adminPass> <workerEmail> <workerPass> <superEmail> <superPass>
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
-const [, , adminEmail, adminPass, salesEmail, salesPass] = process.argv;
+const [, , adminEmail, adminPass, salesEmail, salesPass, superEmail, superPass] = process.argv;
 
 if (!adminEmail || !adminPass || !salesEmail || !salesPass) {
   console.error(
-    "Usage: npm run test:e2e -- <adminEmail> <adminPass> <salesEmail> <salesPass>\n" +
-      "Seed them first with: npm run seed -- --email ... --password ... --name ... --role admin|sales"
+    "Usage: npm run test:e2e -- <adminEmail> <adminPass> <workerEmail> <workerPass> [superEmail] [superPass]\n" +
+      "The super admin is created by: npm run seed -- --email ... --password ... --name ...\n" +
+      "Admin and worker accounts are then created from the app's Users screen."
   );
   process.exit(1);
 }
@@ -33,6 +38,19 @@ const suites = [
   { name: "public sharing", script: "test-sharing.mjs", args: [adminEmail, adminPass] },
   { name: "full user journey", script: "e2e-test.mjs", args: [SCRATCH] },
 ];
+
+// Needs all three tiers, so it only runs when super-admin credentials are
+// supplied. Proves the client's headline rule: a super admin's quotations are
+// invisible to admins and workers, and an admin's are invisible to workers.
+if (superEmail && superPass) {
+  suites.push({
+    name: "role hierarchy",
+    script: "test-hierarchy.mjs",
+    args: [SCRATCH, superEmail, superPass, adminEmail, adminPass, salesEmail, salesPass],
+  });
+} else {
+  console.log("(skipping the role-hierarchy suite — pass <superEmail> <superPass> to include it)\n");
+}
 
 function run(script, args) {
   return new Promise((resolve) => {

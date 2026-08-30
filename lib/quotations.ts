@@ -4,7 +4,7 @@ import { quotations as quotationsCollection, type StoredQuotation } from "./coll
 import { canAccessOwned, ownershipFilter, type Actor } from "./authz";
 import { findOrCreateCustomer } from "./customers";
 import { nextQuoteNo } from "./numbering";
-import { computeItem, computeTotals, SURCHARGES } from "./pricing";
+import { computeItem, computeTotals, effectiveRate } from "./pricing";
 import {
   STATUS_TRANSITIONS,
   type Payment,
@@ -22,17 +22,12 @@ const fail = <T = never>(error: string): Result<T> => ({ ok: false, error });
 /** Shared by create/update/duplicate — never trust a client-sent amount, always derive it from billed dims + rate. */
 function computeQuotationPricing(input: QuotationInput) {
   const computedItems = input.items.map((item) => {
-    const surchargeSum =
-      item.pricingMode === "per_sqft"
-        ? item.surcharges.reduce((sum, key) => sum + (SURCHARGES[key as keyof typeof SURCHARGES] ?? 0), 0)
-        : 0;
-    const effectiveRate = item.rate + surchargeSum;
     const computed = computeItem({
       billedWidthFt: item.billed.w,
       billedHeightFt: item.billed.h,
       qty: item.qty,
       pricingMode: item.pricingMode,
-      rate: effectiveRate,
+      rate: effectiveRate(item),
     });
     return { ...item, ...computed };
   });
@@ -250,6 +245,7 @@ export async function duplicateQuotation(
       rate: item.rate,
       specs: item.specs,
       surcharges: item.surcharges,
+      toughenedGlassMm: item.toughenedGlassMm,
       diagram: item.diagram,
       remarks: item.remarks,
     })),

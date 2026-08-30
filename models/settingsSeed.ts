@@ -35,16 +35,23 @@ export const SETTINGS_SEED: Omit<Settings, "_id"> = {
   },
   gstPresets: [18, 9, 0],
   terms: {
+    // Rewritten from the original hand-typed job-sheet notes: corrected
+    // spelling ("Silicon" the element -> "Silicone" the sealant, "Aluminum"
+    // -> "Aluminium" to match the rest of the app), fixed grammar, and made
+    // the currency format consistent (was a mix of "rs 30", "rs 20/-").
+    // Wording kept plain and factual — this prints on the customer's copy.
     boilerplate: [
-      "We use Aluminum mesh screen.",
-      "We use Reinforcement GI all 4 sides in frames.",
-      "No Warranty for glass & hardware.",
-      "Silicon one side only, for both side will be extra.",
-      "We use premium hardware.",
-      "Above is not a final measurement, final quotation will be as per final measurement.",
-      "Other color or one way glass rs 30 extra per sqft.",
-      "SS Mesh if required, rs 20/- extra per sqft.",
-      "If Aluminum track required, rs 20/- extra per sqft.",
+      "We use aluminium mesh screens.",
+      "GI reinforcement is used on all four sides of the frames.",
+      "Premium hardware is used throughout.",
+      // Client-confirmed: inside-only is the standard; balcony doors get both
+      // sides as standard practice, included in the quoted rate (not extra).
+      "Silicone is applied on the inside only. For balcony doors, silicone is applied on both sides.",
+      "No warranty on glass and hardware.",
+      "Sizes above are approximate. Final pricing will be based on the final site measurement.",
+      "Other colours or one-way glass: ₹30 extra per sqft.",
+      "SS mesh, if required: ₹20 extra per sqft.",
+      "Aluminium track, if required: ₹20 extra per sqft.",
     ],
     profiles: [
       "BAYDEE (Half white) German Technology UPVC Profile.",
@@ -84,8 +91,9 @@ export const SETTINGS_SEED: Omit<Settings, "_id"> = {
         steps: ["60% advance.", "30% before dispatch.", "10% after installation."],
       },
       {
-        label: "70 / 20 / 10",
-        steps: ["70% advance.", "20% before dispatch.", "10% after installation."],
+        // Client-confirmed replacement for the old "70 / 20 / 10" scheme.
+        label: "50 / 30 / 20",
+        steps: ["50% advance.", "30% before dispatch.", "20% after installation."],
       },
       {
         label: "70 / 30",

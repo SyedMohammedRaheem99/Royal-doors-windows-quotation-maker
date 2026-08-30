@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { settings as settingsCollection } from "@/lib/collections";
 import { loadQuotationFor } from "@/lib/quotations";
 import { createInvoiceFromQuotation } from "@/lib/invoices";
@@ -20,7 +20,7 @@ export default async function NewInvoicePage({
   const { from } = await searchParams;
   if (!from) redirect("/quotations");
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) notFound();
 
   const loaded = await loadQuotationFor(from, actor);
@@ -76,7 +76,7 @@ export default async function NewInvoicePage({
 
   async function raiseAction(input: InvoiceInput) {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return { error: "Not authenticated." };
 
     const parsed = InvoiceInputSchema.safeParse(input);

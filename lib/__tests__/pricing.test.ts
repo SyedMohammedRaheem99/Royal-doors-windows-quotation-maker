@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { computeItem, computeTotals } from "../pricing";
+import {
+  computeItem,
+  computeTotals,
+  effectiveRate,
+  SURCHARGES,
+  TOUGHENED_GLASS_BASE_MM,
+  TOUGHENED_GLASS_BASE_RATE,
+  TOUGHENED_GLASS_RATE_PER_MM,
+  toughenedGlassSurcharge,
+} from "../pricing";
 import { feetToArchLabel, mmToFeet, snapToHalfFoot, suggestBilledFeet } from "../dimensions";
 import { amountInWords, rupeesInWords } from "../words";
 
@@ -178,5 +187,111 @@ describe("amount in words — Indian lakh/crore grouping", () => {
 
   it("wraps with the INR prefix and 'only' suffix", () => {
     expect(amountInWords(1000)).toBe("INR. One Thousand only.");
+  });
+});
+
+describe("effectiveRate — what a customer-facing document must print as the rate", () => {
+  it("adds a single surcharge to the base rate for a per_sqft item", () => {
+    const rate = effectiveRate({ rate: 250, pricingMode: "per_sqft", surcharges: ["nonWhiteOrOneWayGlass"] });
+    expect(rate).toBe(250 + SURCHARGES.nonWhiteOrOneWayGlass);
+  });
+
+  it("stacks multiple surcharges", () => {
+    const rate = effectiveRate({
+      rate: 355,
+      pricingMode: "per_sqft",
+      surcharges: ["ssMesh", "aluminiumTrack"],
+    });
+    expect(rate).toBe(355 + SURCHARGES.ssMesh + SURCHARGES.aluminiumTrack);
+  });
+
+  it("ignores surcharges on a per_unit item, matching computeQuotationPricing's rule", () => {
+    const rate = effectiveRate({ rate: 1800, pricingMode: "per_unit", surcharges: ["ssMesh"] });
+    expect(rate).toBe(1800);
+  });
+
+  it("returns the base rate unchanged when there are no surcharges", () => {
+    expect(effectiveRate({ rate: 300, pricingMode: "per_sqft", surcharges: [] })).toBe(300);
+  });
+
+  /**
+   * The regression this whole function exists to prevent: RDW/26-27/0302
+   * printed "₹250/sqft x 11,385 sqft" (= ₹28,46,250) while billing
+   * ₹31,87,800 — the non-white-glass surcharge was applied in the stored
+   * amount but never reflected in the printed rate, a ₹3,41,550 gap with no
+   * explanation on the page. Printing effectiveRate() × area must equal the
+   * stored amount for any surcharged item, always.
+   */
+  it("real case: printed rate x area reproduces the stored amount exactly (RDW/26-27/0302)", () => {
+    const item = { rate: 250, pricingMode: "per_sqft" as const, surcharges: ["nonWhiteOrOneWayGlass"] };
+    const totalAreaSqft = 11385;
+    const storedAmount = 3187800;
+
+    const printedRate = effectiveRate(item);
+    expect(printedRate).toBe(280);
+    expect(printedRate * totalAreaSqft).toBe(storedAmount);
+  });
+
+  it("printed rate x area matches computeItem's amount for any surcharged per_sqft item", () => {
+    const item = { rate: 355, pricingMode: "per_sqft" as const, surcharges: ["ssMesh", "aluminiumTrack"] };
+    const billedWidthFt = 5.5;
+    const billedHeightFt = 6.5;
+    const qty = 14;
+
+    const computed = computeItem({ billedWidthFt, billedHeightFt, qty, pricingMode: "per_sqft", rate: effectiveRate(item) });
+    expect(effectiveRate(item) * computed.totalAreaSqft).toBe(computed.amount);
+  });
+
+  it("adds the flat French window design surcharge, same as any other SURCHARGES key", () => {
+    const rate = effectiveRate({ rate: 500, pricingMode: "per_sqft", surcharges: ["frenchWindowDesign"] });
+    expect(rate).toBe(500 + SURCHARGES.frenchWindowDesign);
+  });
+
+  it("folds in the toughened-glass surcharge alongside flat surcharges", () => {
+    const rate = effectiveRate({
+      rate: 300,
+      pricingMode: "per_sqft",
+      surcharges: ["ssMesh"],
+      toughenedGlassMm: 8,
+    });
+    expect(rate).toBe(300 + SURCHARGES.ssMesh + toughenedGlassSurcharge(8));
+  });
+
+  it("ignores toughenedGlassMm on a per_unit item, same rule as flat surcharges", () => {
+    const rate = effectiveRate({ rate: 1800, pricingMode: "per_unit", surcharges: [], toughenedGlassMm: 12 });
+    expect(rate).toBe(1800);
+  });
+});
+
+describe("toughenedGlassSurcharge — client-confirmed: +₹50 at 5mm, +₹10/sqft per mm above that", () => {
+  it("charges the base rate at exactly the base thickness (5mm)", () => {
+    expect(toughenedGlassSurcharge(TOUGHENED_GLASS_BASE_MM)).toBe(TOUGHENED_GLASS_BASE_RATE);
+    expect(toughenedGlassSurcharge(5)).toBe(50);
+  });
+
+  it("adds the per-mm rate for every mm above the base", () => {
+    expect(toughenedGlassSurcharge(6)).toBe(60);
+    expect(toughenedGlassSurcharge(8)).toBe(80);
+    expect(toughenedGlassSurcharge(10)).toBe(100);
+    expect(toughenedGlassSurcharge(12)).toBe(120);
+  });
+
+  it("never charges more than the base rate below the base thickness", () => {
+    // Below 5mm isn't a real toughened-glass thickness in this trade, but the
+    // function should still degrade sanely rather than go negative.
+    expect(toughenedGlassSurcharge(3)).toBe(TOUGHENED_GLASS_BASE_RATE);
+  });
+
+  it("is zero for a non-positive thickness", () => {
+    expect(toughenedGlassSurcharge(0)).toBe(0);
+    expect(toughenedGlassSurcharge(-5)).toBe(0);
+  });
+
+  it("scales linearly using the confirmed per-mm rate, not a hardcoded table", () => {
+    for (const mm of [5, 6, 7, 8, 9, 10, 11, 12]) {
+      expect(toughenedGlassSurcharge(mm)).toBe(
+        TOUGHENED_GLASS_BASE_RATE + (mm - TOUGHENED_GLASS_BASE_MM) * TOUGHENED_GLASS_RATE_PER_MM
+      );
+    }
   });
 });

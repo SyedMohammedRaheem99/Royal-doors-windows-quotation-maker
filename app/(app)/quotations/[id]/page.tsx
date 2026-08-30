@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering";
 import { addPayment, duplicateQuotation, loadQuotationFor, removePayment, setQuotationStatus } from "@/lib/quotations";
@@ -28,7 +28,7 @@ import { PaymentInputSchema, type PaymentInput, type QuotationStatus } from "@/m
 export default async function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) notFound();
 
   const loaded = await loadQuotationFor(id, actor);
@@ -41,7 +41,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   async function duplicateAction() {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return;
     const result = await duplicateQuotation(id, actor2);
     if (!result.ok) return;
@@ -50,7 +50,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   async function statusAction(to: QuotationStatus) {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return { error: "Not authenticated." };
 
     const result = await setQuotationStatus(id, to, actor2);
@@ -64,7 +64,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   async function addPaymentAction(input: PaymentInput) {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return { error: "Not authenticated." };
 
     // Re-validate server-side: the client form is a convenience, not a
@@ -81,7 +81,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   async function removePaymentAction(paymentId: string) {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return { error: "Not authenticated." };
 
     const result = await removePayment(id, paymentId, actor2);
@@ -93,7 +93,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   async function createShareAction() {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return { error: "Not authenticated." };
 
     const result = await createShareLink(id, actor2);
@@ -105,7 +105,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   async function revokeShareAction() {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return { error: "Not authenticated." };
 
     const result = await revokeShareLink(id, actor2);
@@ -141,8 +141,10 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               </button>
             </form>
           </div>
-          {/* Invoicing is only meaningful once approved; once invoiced, the
-              action becomes a link to the invoice rather than a second raise. */}
+          {/* Tax invoicing is hidden for now — see FUTURE-IDEAS.md's "Tax
+              invoicing" entry. The underlying feature (lib/invoices.ts, the
+              /invoices pages) is untouched; re-enable by restoring this
+              block.
           {quotation.invoiceId ? (
             <Link
               href={`/invoices/${quotation.invoiceId}`}
@@ -160,6 +162,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               </Link>
             )
           )}
+          */}
           <StatusActions status={quotation.status} onChange={statusAction} />
         </div>
       </div>

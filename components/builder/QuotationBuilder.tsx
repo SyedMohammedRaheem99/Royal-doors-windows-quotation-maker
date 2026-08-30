@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 import { clearDraft, loadDraft, useDraftAutosave } from "./useDraftAutosave";
 import type { GstRatePercent, PaymentScheme, RateCardEntry, TermsLibrary, WorkDuration } from "@/models/schemas";
 import { ItemRow } from "./ItemRow";
+import { MobileTotalsBar } from "./MobileTotalsBar";
 import { TotalsPanel } from "./TotalsPanel";
 import { emptyCustomer, emptyItem, type BuilderCustomer, type BuilderGst, type BuilderItem } from "./types";
 
@@ -24,6 +25,7 @@ export interface QuotationSavePayload {
     rate: number;
     specs: BuilderItem["specs"];
     surcharges: string[];
+    toughenedGlassMm?: number;
     diagram: {
       type: BuilderItem["diagramType"];
       panels: number;
@@ -116,6 +118,11 @@ export function QuotationBuilder({
   const [profile, setProfile] = useState(initial?.profile ?? terms.profiles[0] ?? "");
   const [glass, setGlass] = useState(initial?.glass ?? terms.glass[0] ?? "");
 
+  // Which item keys are collapsed to a summary line. A quotation with ten
+  // fully-expanded items is unusable on a phone, which is the primary
+  // on-site device — so once a new item is added, the previous ones fold up.
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ id: string; quoteNo: string } | null>(null);
@@ -181,7 +188,19 @@ export function QuotationBuilder({
   }
 
   function removeItem(index: number) {
+    // Read the key before updating, rather than calling setCollapsedKeys from
+    // inside the setItems updater — updaters must stay pure, or StrictMode's
+    // double-invoke fires the nested setState twice.
+    const removedKey = items[index]?.key;
     setItems((prev) => prev.filter((_, i) => i !== index));
+    if (removedKey) {
+      setCollapsedKeys((keys) => {
+        if (!keys.has(removedKey)) return keys;
+        const next = new Set(keys);
+        next.delete(removedKey);
+        return next;
+      });
+    }
   }
 
   /**
@@ -237,6 +256,7 @@ export function QuotationBuilder({
           rate: item.rate,
           specs: item.specs,
           surcharges: item.surcharges,
+          toughenedGlassMm: item.toughenedGlassMm,
           diagram: { type: item.diagramType, panels: 2, meshPanels: 0, handing: item.handing, fanPoint: item.fanPoint },
           remarks: item.remarks,
         })),
@@ -278,7 +298,7 @@ export function QuotationBuilder({
   }
 
   return (
-    <div className="grid grid-cols-[1fr_320px] gap-6">
+    <div className="flex flex-col gap-6 pb-20 md:grid md:grid-cols-[1fr_320px] md:pb-0">
       <div className="space-y-6">
         {recoverable && (
           <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -308,7 +328,7 @@ export function QuotationBuilder({
         {/* Customer block */}
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <h2 className="mb-3 text-sm font-semibold text-neutral-700">Customer</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
             <div>
               <label className={labelClass()}>Name *</label>
               <input className={inputClass()} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
@@ -321,7 +341,7 @@ export function QuotationBuilder({
               <label className={labelClass()}>Project / Site</label>
               <input className={inputClass()} value={customer.project} onChange={(e) => setCustomer({ ...customer, project: e.target.value })} />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={labelClass()}>Site address</label>
               <input className={inputClass()} value={customer.siteAddress} onChange={(e) => setCustomer({ ...customer, siteAddress: e.target.value })} />
             </div>
@@ -348,6 +368,24 @@ export function QuotationBuilder({
 
         {/* Items */}
         <div className="space-y-3">
+          {items.length > 1 && (
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs text-neutral-500">
+                {items.length} item{items.length === 1 ? "" : "s"}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCollapsedKeys((prev) =>
+                    prev.size === items.length ? new Set() : new Set(items.map((it) => it.key))
+                  )
+                }
+                className="text-xs text-[#0f3d2e] hover:underline"
+              >
+                {collapsedKeys.size === items.length ? "Expand all" : "Collapse all"}
+              </button>
+            </div>
+          )}
           {items.map((item, i) => (
             <ItemRow
               key={item.key}
@@ -355,6 +393,15 @@ export function QuotationBuilder({
               index={i}
               total={items.length}
               rateCard={rateCard}
+              collapsed={collapsedKeys.has(item.key)}
+              onToggleCollapsed={() =>
+                setCollapsedKeys((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(item.key)) next.delete(item.key);
+                  else next.add(item.key);
+                  return next;
+                })
+              }
               onChange={(next) => updateItem(i, next)}
               onRemove={() => removeItem(i)}
               onDuplicate={() => duplicateItem(i)}
@@ -363,7 +410,13 @@ export function QuotationBuilder({
           ))}
           <button
             type="button"
-            onClick={() => setItems((prev) => [...prev, emptyItem(nextKey())])}
+            onClick={() => {
+              const key = nextKey();
+              // Fold the existing items away so the new one is the only thing
+              // expanded — the common on-site flow is "add, fill, add again".
+              setCollapsedKeys(new Set(items.map((it) => it.key)));
+              setItems((prev) => [...prev, emptyItem(key)]);
+            }}
             className="w-full rounded-lg border-2 border-dashed border-neutral-300 py-3 text-sm text-neutral-500 hover:border-[#0f3d2e] hover:text-[#0f3d2e]"
           >
             + Add item
@@ -373,7 +426,7 @@ export function QuotationBuilder({
         {/* Terms */}
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <h2 className="mb-3 text-sm font-semibold text-neutral-700">Terms</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelClass()}>Profile</label>
               <select className={inputClass()} value={profile} onChange={(e) => setProfile(e.target.value)}>
@@ -414,7 +467,7 @@ export function QuotationBuilder({
                 ))}
               </select>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={labelClass()}>Payment scheme</label>
               <select className={inputClass()} value={paymentSchemeIdx} onChange={(e) => setPaymentSchemeIdx(Number(e.target.value))}>
                 {terms.paymentSchemes.map((ps, i) => (
@@ -428,8 +481,8 @@ export function QuotationBuilder({
         </div>
       </div>
 
-      {/* Sidebar */}
-      <div className="space-y-4">
+      {/* Sidebar — desktop only; MobileTotalsBar below covers this on phone/tablet. */}
+      <div className="hidden space-y-4 md:block">
         <TotalsPanel items={items} transportation={transportation} onTransportationChange={setTransportation} gst={gst} onGstChange={setGst} gstPresets={gstPresets} />
 
         {error && <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
@@ -455,6 +508,21 @@ export function QuotationBuilder({
           </p>
         )}
       </div>
+
+      {error && <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 md:hidden">{error}</p>}
+
+      <MobileTotalsBar
+        items={items}
+        transportation={transportation}
+        onTransportationChange={setTransportation}
+        gst={gst}
+        onGstChange={setGst}
+        gstPresets={gstPresets}
+        canSave={canSave}
+        saving={saving}
+        saveLabel={saveLabel}
+        onSave={handleSave}
+      />
     </div>
   );
 }

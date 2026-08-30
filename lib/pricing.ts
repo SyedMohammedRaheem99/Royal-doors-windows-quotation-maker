@@ -101,4 +101,54 @@ export const SURCHARGES = {
   nonWhiteOrOneWayGlass: 30, // "Other color or one way glass rs 30 extra per sqft."
   ssMesh: 20, // "SS Mesh if required, rs 20/- extra per sqft."
   aluminiumTrack: 20, // "If Aluminum track required, rs 20/- extra per sqft."
+  frenchWindowDesign: 50, // Client-confirmed: French window design, +₹50/sqft flat.
 } as const;
+
+/**
+ * Toughened glass is priced by thickness, not a flat add-on like the
+ * SURCHARGES map above — client-confirmed: +₹50/sqft at 5mm, then +₹10/sqft
+ * for every additional mm above 5mm. Kept as its own function rather than
+ * forced into SURCHARGES because it takes a thickness argument; SURCHARGES'
+ * keys are all flat amounts with no parameter.
+ */
+export const TOUGHENED_GLASS_BASE_MM = 5;
+export const TOUGHENED_GLASS_BASE_RATE = 50; // ₹/sqft at TOUGHENED_GLASS_BASE_MM
+export const TOUGHENED_GLASS_RATE_PER_MM = 10; // ₹/sqft for each mm above the base
+
+export function toughenedGlassSurcharge(thicknessMm: number): number {
+  if (thicknessMm <= 0) return 0;
+  if (thicknessMm <= TOUGHENED_GLASS_BASE_MM) return TOUGHENED_GLASS_BASE_RATE;
+  return (
+    TOUGHENED_GLASS_BASE_RATE +
+    (thicknessMm - TOUGHENED_GLASS_BASE_MM) * TOUGHENED_GLASS_RATE_PER_MM
+  );
+}
+
+/**
+ * The rate an item is actually priced at once its surcharges are folded in —
+ * i.e. what `amount / area` (or `amount / qty`) works out to. lib/quotations.ts
+ * computes an item's stored `amount` from exactly this rate; any document that
+ * prints a rate for an item must call this rather than reading `item.rate`
+ * directly, or the printed rate and the printed amount stop agreeing with each
+ * other. (This is what RDW/26-27/0302 got wrong: it printed the base rate
+ * while billing the effective rate, a ₹3,41,550 gap the customer couldn't
+ * account for.) Surcharges only ever apply to per_sqft items — a per_unit
+ * item's surcharges list is ignored here exactly as it is when the amount
+ * itself is computed.
+ */
+export function effectiveRate(item: {
+  rate: number;
+  pricingMode: PricingMode;
+  surcharges: string[];
+  /** See toughenedGlassSurcharge() — a variable-by-thickness charge, not a
+   *  flat SURCHARGES key, so it's folded in as its own parameter. */
+  toughenedGlassMm?: number;
+}): number {
+  if (item.pricingMode !== "per_sqft") return item.rate;
+  const flatSurchargeSum = item.surcharges.reduce(
+    (sum, key) => sum + (SURCHARGES[key as keyof typeof SURCHARGES] ?? 0),
+    0
+  );
+  const toughenedSurcharge = item.toughenedGlassMm ? toughenedGlassSurcharge(item.toughenedGlassMm) : 0;
+  return item.rate + flatSurchargeSum + toughenedSurcharge;
+}

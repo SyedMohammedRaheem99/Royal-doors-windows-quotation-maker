@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { canManageSettings, resolveActor } from "@/lib/authz";
 import { getDb } from "@/lib/db";
 import { updateSettingsFields, type EditableSettingsFields } from "@/lib/settings";
 import { SettingsForm } from "@/components/settings/SettingsForm";
 
 export default async function SettingsPage() {
-  const session = await auth();
-  if (session?.user.role !== "admin") redirect("/dashboard");
+  const actor = await resolveActor(await auth());
+  if (!canManageSettings(actor)) redirect("/dashboard");
 
   const db = await getDb();
   const settingsDoc = await db.collection("settings").findOne({});
@@ -36,8 +37,8 @@ export default async function SettingsPage() {
 
   async function saveAction(fields: EditableSettingsFields) {
     "use server";
-    const session2 = await auth();
-    if (session2?.user.role !== "admin") return { error: "Not authorized." };
+    const actor2 = await resolveActor(await auth());
+    if (!canManageSettings(actor2)) return { error: "Not authorized." };
     await updateSettingsFields(fields);
     return { ok: true as const };
   }

@@ -17,8 +17,11 @@ export const CUSTOMERS_PAGE_SIZE = 25;
  * contact details and reassign that customerId to rep B's quotation, which
  * rep A could then no longer find on their own Customers page. Same class of
  * bug as the Phase 1 authorization gaps, just in a write path rather than a
- * read. Admins share one pool with each other and with no one else, since an
- * admin's quotations are visible to all sales users' ownership checks anyway.
+ * read. Each user's customer pool stays their own even under the hierarchy:
+ * an admin's dedup lookup is still scoped to createdBy === that admin's own
+ * id, not to "everyone they can see" — a worker's and their managing admin's
+ * customer records stay separate rows even though both may be visible to the
+ * same admin via ownershipFilter.
  */
 export async function findOrCreateCustomer(
   db: Db,

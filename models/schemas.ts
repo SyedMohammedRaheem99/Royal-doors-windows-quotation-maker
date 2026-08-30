@@ -32,6 +32,17 @@ export const DIAGRAM_TYPES = [
   "mesh_standalone",
   "aluminium_window",
   "aluminium_sliding",
+  // Added so distinct products stop sharing one drawing: an openable door
+  // single vs double, a partition, a foldable door/window, a door frame and a
+  // sealed double-glazed unit are all visually different things that were
+  // previously all rendering as the same picture.
+  "openable_door_single",
+  "openable_door_double",
+  "partition",
+  "foldable_door",
+  "foldable_window",
+  "door_frame",
+  "dgu_glass",
 ] as const;
 export const DiagramType = z.enum(DIAGRAM_TYPES);
 export type DiagramType = z.infer<typeof DiagramType>;
@@ -43,7 +54,7 @@ export type PricingMode = z.infer<typeof PricingMode>;
 export const Handing = z.enum(["none", "left", "right"]);
 export type Handing = z.infer<typeof Handing>;
 
-export const UserRole = z.enum(["admin", "sales"]);
+export const UserRole = z.enum(["super_admin", "admin", "worker"]);
 export type UserRole = z.infer<typeof UserRole>;
 
 export const QuotationStatus = z.enum(["draft", "sent", "approved", "lost"]);
@@ -81,9 +92,36 @@ export const UserSchema = z.object({
   email: z.string().email(),
   passwordHash: z.string(),
   role: UserRole,
+  /**
+   * The id of the admin/super_admin who created this account — the hierarchy
+   * edge that visibility (see lib/authz.ts) is built on. Absent only for the
+   * super_admin, who is created once via the seed script, not through the app.
+   */
+  managedBy: z.string().optional(),
+  /**
+   * Deactivating a user never deletes the account or touches `createdBy` on
+   * their historical quotations/customers — those must keep resolving to a
+   * name, and stay visible to whoever manages that user.
+   */
+  active: z.boolean().default(true),
   createdAt: z.date().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
+
+/** What an authorized actor may send to create a new admin/worker account. */
+export const CreateUserInputSchema = z.object({
+  name: z.string().min(1, "Name is required."),
+  email: z.string().email("Enter a valid email."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  role: z.enum(["admin", "worker"]), // super_admin is never created via this path
+});
+export type CreateUserInput = z.infer<typeof CreateUserInputSchema>;
+
+/** What an authorized actor may send to reset another user's password. */
+export const ResetPasswordInputSchema = z.object({
+  newPassword: z.string().min(6, "Password must be at least 6 characters."),
+});
+export type ResetPasswordInput = z.infer<typeof ResetPasswordInputSchema>;
 
 /** ---------- customers ---------- */
 
@@ -124,6 +162,45 @@ export const RateCardEntrySchema = z.object({
   active: z.boolean().default(true),
 });
 export type RateCardEntry = z.infer<typeof RateCardEntrySchema>;
+
+/**
+ * An audit entry for a rate change.
+ *
+ * Rates are the most commercially sensitive number in the app — the
+ * reference data showed the same product quoted anywhere from ₹270 to ₹350
+ * with nothing recording who changed what or when. This makes that
+ * answerable.
+ */
+export const RateChangeSchema = z.object({
+  _id: z.string().optional(),
+  productType: z.string(),
+  label: z.string(),
+  from: z.number(),
+  to: z.number(),
+  changedBy: z.string(),
+  changedByName: z.string().default(""),
+  changedAt: z.date(),
+  /** Set when the change came from a bulk adjustment rather than a single edit. */
+  bulkReason: z.string().default(""),
+});
+export type RateChange = z.infer<typeof RateChangeSchema>;
+
+/** What an admin may send when creating or editing a rate-card product. */
+export const RateCardInputSchema = z.object({
+  productType: z
+    .string()
+    .min(1, "Product code is required.")
+    .regex(/^[a-z0-9_]+$/, "Product code may only contain lowercase letters, numbers and underscores."),
+  label: z.string().min(1, "Product name is required."),
+  category: ProductCategory,
+  pricingMode: PricingMode,
+  defaultRate: z.number().nonnegative("Rate cannot be negative."),
+  minRate: z.number().nonnegative(),
+  maxRate: z.number().nonnegative(),
+  diagramType: DiagramType,
+  active: z.boolean().default(true),
+});
+export type RateCardInput = z.infer<typeof RateCardInputSchema>;
 
 /** ---------- settings (single document) ---------- */
 
@@ -262,6 +339,15 @@ export const QuotationItemSchema = z.object({
   amount: z.number().nonnegative(),
   specs: ItemSpecsSchema,
   surcharges: z.array(z.string()).default([]),
+  /**
+   * Set only when the toughened-glass surcharge is active on this item.
+   * Kept separate from `surcharges` (which is flat-amount keys with no
+   * parameter — see lib/pricing.ts's SURCHARGES) because the toughened-glass
+   * charge is priced BY this thickness (client-confirmed: +₹50/sqft at 5mm,
+   * +₹10/sqft for every mm above that) via
+   * lib/pricing.ts's toughenedGlassSurcharge().
+   */
+  toughenedGlassMm: z.number().positive().optional(),
   diagram: DiagramSpecSchema,
   remarks: z.string().default(""),
 });

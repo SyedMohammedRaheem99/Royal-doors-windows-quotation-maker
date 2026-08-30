@@ -51,6 +51,42 @@ async function main() {
       : "Settings are up to date — nothing to backfill."
   );
 
+  // --- three-tier role migration (old 2-role "admin"/"sales" -> super_admin/admin/worker) ---
+  // Idempotent: re-running finds nothing left to migrate once done.
+  const users = db.collection("users");
+
+  // The original seeded "admin" becomes the one super_admin (the business
+  // owner). If more than one "admin" document exists at migration time, only
+  // the oldest is promoted — the rest are left as "admin" for manual review
+  // rather than guessed, since which one is the real owner isn't derivable.
+  const legacyAdmins = await users.find({ role: "admin" }).sort({ createdAt: 1 }).toArray();
+  if (legacyAdmins.length > 0) {
+    const owner = legacyAdmins[0];
+    await users.updateOne({ _id: owner._id }, { $set: { role: "super_admin", active: true } });
+    console.log(`Promoted legacy admin ${owner.email} to super_admin.`);
+    if (legacyAdmins.length > 1) {
+      console.log(
+        `Left ${legacyAdmins.length - 1} other legacy "admin" user(s) as role "admin" — ` +
+          `review and assign managedBy manually via the Users screen.`
+      );
+    }
+  }
+
+  const legacySales = await users.find({ role: "sales" }).toArray();
+  if (legacySales.length > 0) {
+    const superAdmin = await users.findOne({ role: "super_admin" });
+    const result = await users.updateMany(
+      { role: "sales" },
+      { $set: { role: "worker", managedBy: superAdmin?._id?.toString(), active: true } }
+    );
+    console.log(`Migrated ${result.modifiedCount} legacy "sales" user(s) to "worker", managed by the super_admin.`);
+  }
+
+  const backfillActive = await users.updateMany({ active: { $exists: false } }, { $set: { active: true } });
+  if (backfillActive.modifiedCount > 0) {
+    console.log(`Backfilled active:true on ${backfillActive.modifiedCount} user(s).`);
+  }
+
   await client.close();
   console.log("Migration complete.");
 }

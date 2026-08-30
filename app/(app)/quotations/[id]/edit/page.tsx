@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { rateCard as rateCardCollection, settings as settingsCollection } from "@/lib/collections";
 import { loadQuotationFor, updateQuotation } from "@/lib/quotations";
 import { QuotationBuilder, type QuotationSavePayload, type SaveResult } from "@/components/builder/QuotationBuilder";
@@ -13,7 +13,7 @@ import { QuotationInputSchema, type Quotation, type RateCardEntry, type Settings
 export default async function EditQuotationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) notFound();
 
   const [loaded, rateCardCol, settingsCol] = await Promise.all([
@@ -37,7 +37,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
 
   async function saveAction(payload: QuotationSavePayload): Promise<SaveResult> {
     "use server";
-    const actor2 = actorFromSession(await auth());
+    const actor2 = await resolveActor(await auth());
     if (!actor2) return { error: "Not authenticated." };
 
     const parsed = QuotationInputSchema.safeParse(payload);

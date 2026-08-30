@@ -18,19 +18,31 @@ export default function DiagramGalleryPage() {
       <h1 className="mb-6 text-xl font-semibold">Diagram gallery — {DIAGRAM_TYPES.length} types</h1>
       <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
         {DIAGRAM_TYPES.map((type) =>
-          ASPECTS.map((aspect) => (
-            <div key={`${type}-${aspect.label}`} className="rounded border border-neutral-300 bg-white p-3">
-              <p className="mb-1 text-xs font-medium text-neutral-700">{type}</p>
-              <p className="mb-2 text-[10px] text-neutral-400">{aspect.label}</p>
-              <WindowDiagram
-                type={type}
-                widthFt={aspect.w}
-                heightFt={aspect.h}
-                fanPoint={type === "ventilator"}
-                className="h-auto w-full"
-              />
-            </div>
-          ))
+          // The ventilator has two visually distinct variants driven by the
+          // fanPoint flag, so render both here — otherwise the gallery can't
+          // show that "Ventilator" and "Ventilator with fan point" actually
+          // draw differently.
+          (type === "ventilator" ? [false, true] : [false]).flatMap((fan) =>
+            ASPECTS.map((aspect) => (
+              <div
+                key={`${type}-${fan}-${aspect.label}`}
+                className="rounded border border-neutral-300 bg-white p-3"
+              >
+                <p className="mb-1 text-xs font-medium text-neutral-700">
+                  {type}
+                  {type === "ventilator" && (fan ? " (fan point)" : " (no fan point)")}
+                </p>
+                <p className="mb-2 text-[10px] text-neutral-400">{aspect.label}</p>
+                <WindowDiagram
+                  type={type}
+                  widthFt={aspect.w}
+                  heightFt={aspect.h}
+                  fanPoint={fan}
+                  className="h-auto w-full"
+                />
+              </div>
+            ))
+          )
         )}
       </div>
     </div>

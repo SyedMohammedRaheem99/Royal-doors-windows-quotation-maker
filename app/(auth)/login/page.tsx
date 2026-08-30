@@ -1,6 +1,17 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
+
+/**
+ * Deliberately no "forgot password" link on this page. super_admin
+ * credentials are set once via the seed script and are never self-reset —
+ * if lost, only direct DB/script access can rotate them. admin and worker
+ * accounts get their password reset FOR them by whoever manages them, from
+ * the Users screen (lib/users.ts's resetUserPassword) — there is no email
+ * infrastructure in this app, so there is no self-service reset for anyone.
+ * Do not add a forgot-password flow here without re-reading that decision.
+ */
 
 async function loginAction(formData: FormData) {
   "use server";
@@ -29,8 +40,15 @@ export default async function LoginPage({
     <div className="min-h-screen flex items-center justify-center bg-[#0f3d2e] px-4">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-xl">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-semibold text-[#0f3d2e]">Royal Doors and Windows</h1>
-          <p className="mt-1 text-sm text-neutral-500">Quotation Maker</p>
+          <Image
+            src="/Logo.jpg"
+            alt="Royal Doors and Windows"
+            width={765}
+            height={676}
+            priority
+            className="mx-auto mb-4 h-28 w-auto rounded"
+          />
+          <p className="text-sm text-neutral-500">Quotation Maker</p>
         </div>
 
         {error && (

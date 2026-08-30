@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import type { UserRole } from "@/models/schemas";
 
 /**
  * Edge-safe config, used by middleware.ts for route protection. No
@@ -32,7 +33,7 @@ export const authConfig: NextAuthConfig = {
     },
     session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as "admin" | "sales";
+        session.user.role = token.role as UserRole;
         session.user.id = token.id as string;
       }
       return session;

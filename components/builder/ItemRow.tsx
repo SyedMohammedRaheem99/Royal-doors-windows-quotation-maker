@@ -2,16 +2,30 @@
 
 import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel, suggestBilledFeet } from "@/lib/dimensions";
-import { SURCHARGES } from "@/lib/pricing";
+import { SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
 import type { RateCardEntry } from "@/models/schemas";
 import { computeBuilderItem } from "./computeBuilderItem";
+import { ProductPicker } from "./ProductPicker";
 import type { BuilderItem } from "./types";
 
 const SURCHARGE_OPTIONS: Array<{ key: keyof typeof SURCHARGES; label: string }> = [
   { key: "nonWhiteOrOneWayGlass", label: `Other color or one-way glass (+₹${SURCHARGES.nonWhiteOrOneWayGlass}/sqft)` },
   { key: "ssMesh", label: `SS mesh (+₹${SURCHARGES.ssMesh}/sqft)` },
   { key: "aluminiumTrack", label: `Aluminium track (+₹${SURCHARGES.aluminiumTrack}/sqft)` },
+  { key: "frenchWindowDesign", label: `French window design (+₹${SURCHARGES.frenchWindowDesign}/sqft)` },
 ];
+
+// Common thicknesses from the client's rate sheet — a worker picks one
+// rather than typing a number, so the surcharge always resolves to a value
+// toughenedGlassSurcharge() can price, never an unparseable free-text entry.
+const TOUGHENED_GLASS_THICKNESS_OPTIONS = [5, 6, 8, 10, 12];
+
+// Products that are, by definition, the "with fan point" variant. Selecting one
+// must switch the diagram to the fan-point drawing automatically — the worker
+// shouldn't have to also tick a checkbox to make the picture match the product
+// they already chose. The checkbox stays, so a plain ventilator can still be
+// given a fan point without changing product.
+const FAN_POINT_PRODUCTS = new Set(["ventilator_fan_point", "aluminium_ventilator_fan_point"]);
 
 function inputClass(extra = "") {
   return `rounded border border-neutral-300 px-2 py-1.5 text-sm focus:border-[#0f3d2e] focus:outline-none focus:ring-1 focus:ring-[#0f3d2e] ${extra}`;
@@ -26,6 +40,8 @@ export function ItemRow({
   index,
   total,
   rateCard,
+  collapsed = false,
+  onToggleCollapsed,
   onChange,
   onRemove,
   onDuplicate,
@@ -35,6 +51,9 @@ export function ItemRow({
   index: number;
   total: number;
   rateCard: RateCardEntry[];
+  /** Collapsed shows a one-line summary — on a phone a 10-item quotation is otherwise an endless scroll. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   onChange: (next: BuilderItem) => void;
   onRemove: () => void;
   onDuplicate: () => void;
@@ -60,6 +79,13 @@ export function ItemRow({
       pricingMode: product.pricingMode,
       rate: product.defaultRate,
       surcharges: [],
+      toughenedGlassMm: undefined,
+      // The fan-point variants are distinct products, so the flag has to follow
+      // the product choice — otherwise picking "Ventilator with fan point"
+      // leaves fanPoint false and draws the plain louvered vent, making the two
+      // products indistinguishable on the quotation. Reset to false for
+      // everything else so the flag can't stay stuck on from a previous pick.
+      fanPoint: FAN_POINT_PRODUCTS.has(productType),
     });
   }
 
@@ -76,12 +102,44 @@ export function ItemRow({
     item.diagramType
   );
 
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={onToggleCollapsed}
+        className="flex w-full items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-neutral-800">
+            {index + 1}. {item.description || "Untitled item"}
+          </p>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {item.billed.w} × {item.billed.h} ft · Qty {item.qty} · {computed.totalAreaSqft} sqft
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-semibold text-[#0f3d2e]">₹{computed.amount.toLocaleString("en-IN")}</p>
+          <p className="text-xs text-neutral-400">Edit</p>
+        </div>
+      </button>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-[1fr_auto] gap-4 rounded-lg border border-neutral-200 bg-white p-4">
+    <div className="flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4 md:grid md:grid-cols-[1fr_auto]">
       <div>
         <div className="mb-3 flex items-center justify-between">
           <span className="text-sm font-semibold text-neutral-700">Item {index + 1}</span>
           <div className="flex items-center gap-1">
+            {onToggleCollapsed && (
+              <button
+                type="button"
+                onClick={onToggleCollapsed}
+                className="rounded px-2 py-0.5 text-xs text-neutral-600 hover:bg-neutral-100"
+              >
+                Collapse
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onMove(-1)}
@@ -115,21 +173,15 @@ export function ItemRow({
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="col-span-2">
             <label className={labelClass()}>Product</label>
-            <select
+            <ProductPicker
               className={inputClass("w-full")}
+              rateCard={rateCard}
               value={item.productType}
-              onChange={(e) => handleProductChange(e.target.value)}
-            >
-              <option value="">Select product...</option>
-              {rateCard.map((p) => (
-                <option key={p.productType} value={p.productType}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+              onChange={handleProductChange}
+            />
           </div>
           <div>
             <label className={labelClass()}>Description (on quotation)</label>
@@ -299,9 +351,9 @@ export function ItemRow({
           )}
 
           {item.pricingMode === "per_sqft" && (
-            <div className="col-span-4">
+            <div className="col-span-2 md:col-span-4">
               <label className={labelClass()}>Surcharges</label>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap items-center gap-4">
                 {SURCHARGE_OPTIONS.map((s) => (
                   <label key={s.key} className="flex items-center gap-1.5 text-xs text-neutral-600">
                     <input
@@ -318,17 +370,43 @@ export function ItemRow({
                     {s.label}
                   </label>
                 ))}
+                {/* Priced by thickness rather than a flat amount — see
+                    lib/pricing.ts's toughenedGlassSurcharge() — so it isn't
+                    one of SURCHARGE_OPTIONS above and needs its own control. */}
+                <label className="flex items-center gap-1.5 text-xs text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={item.toughenedGlassMm != null}
+                    onChange={(e) =>
+                      patch({ toughenedGlassMm: e.target.checked ? TOUGHENED_GLASS_THICKNESS_OPTIONS[0] : undefined })
+                    }
+                  />
+                  Toughened glass
+                </label>
+                {item.toughenedGlassMm != null && (
+                  <select
+                    className={inputClass()}
+                    value={item.toughenedGlassMm}
+                    onChange={(e) => patch({ toughenedGlassMm: Number(e.target.value) })}
+                  >
+                    {TOUGHENED_GLASS_THICKNESS_OPTIONS.map((mm) => (
+                      <option key={mm} value={mm}>
+                        {mm}mm (+₹{toughenedGlassSurcharge(mm)}/sqft)
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
           )}
 
-          <div className="col-span-4">
+          <div className="col-span-2 md:col-span-4">
             <label className={labelClass()}>Remarks</label>
             <input className={inputClass("w-full")} value={item.remarks} onChange={(e) => patch({ remarks: e.target.value })} />
           </div>
         </div>
 
-        <div className="mt-3 flex gap-6 rounded bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+        <div className="mt-3 flex flex-col gap-1.5 rounded bg-neutral-50 px-3 py-2 text-xs text-neutral-600 sm:flex-row sm:flex-wrap sm:gap-6 sm:gap-y-1.5">
           <span>
             Area/unit: <strong>{computed.areaPerUnitSqft} sqft</strong>
           </span>
@@ -341,7 +419,7 @@ export function ItemRow({
         </div>
       </div>
 
-      <div className="flex w-40 flex-col items-center justify-center">
+      <div className="flex w-32 flex-col items-center justify-center self-center md:w-40">
         <WindowDiagram
           type={item.diagramType}
           widthFt={item.billed.w}

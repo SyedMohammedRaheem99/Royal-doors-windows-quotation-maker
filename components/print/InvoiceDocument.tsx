@@ -1,4 +1,5 @@
 import { hsnSummary } from "@/lib/invoices";
+import { formatINR } from "@/lib/money";
 import { amountInWords } from "@/lib/words";
 import type { Invoice, Settings } from "@/models/schemas";
 import { PrintButton } from "./PrintButton";
@@ -10,9 +11,8 @@ const GOLD = "#c9a227";
 function formatDate(d: Date | string) {
   return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
-function rupees(n: number) {
-  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+/** Shared with the quotation document — see lib/money.ts. */
+const rupees = formatINR;
 
 export function InvoiceDocument({ invoice, settings }: { invoice: Invoice; settings: Settings }) {
   const summary = hsnSummary(invoice);
@@ -33,6 +33,9 @@ export function InvoiceDocument({ invoice, settings }: { invoice: Invoice; setti
         }
         @media print { .inv { margin: 0; box-shadow: none; width: auto; min-height: auto; } .no-print { display: none !important; } }
         .inv-head { background: linear-gradient(135deg, ${GREEN} 0%, ${GREEN_DARK} 100%); color: #fff; padding: 6mm 12mm; display: flex; justify-content: space-between; align-items: flex-start; }
+        .inv-brand { display: flex; gap: 8px; align-items: flex-start; }
+        .logo-mark { width: 13mm; height: 13mm; border: 1.5px solid ${GOLD}; border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+        .logo-mark img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .inv-title { color: ${GOLD}; font-size: 18px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
         .brand-name { color: ${GOLD}; font-size: 17px; font-weight: 700; font-family: Georgia, serif; }
         .brand-name small { display: block; color: #f2e6c2; font-size: 8px; letter-spacing: 0.12em; font-weight: 500; }
@@ -62,15 +65,21 @@ export function InvoiceDocument({ invoice, settings }: { invoice: Invoice; setti
 
       <div className="inv">
         <div className="inv-head">
-          <div>
-            <div className="brand-name">
-              ROYAL<small>DOORS AND WINDOWS</small>
+          <div className="inv-brand">
+            <div className="logo-mark">
+              {/* eslint-disable-next-line @next/next/no-img-element -- print document renders outside next/image's optimization pipeline */}
+              <img src="/logo-mark.png" alt="" />
             </div>
-            <div className="seller-meta">
-              {settings.addressLines.join(", ")}
-              <br />
-              GSTIN/UIN: {settings.gstin} &nbsp;·&nbsp; State: {settings.stateName}, Code: {settings.stateCode}
-              {settings.phone && <> &nbsp;·&nbsp; {settings.phone}</>}
+            <div>
+              <div className="brand-name">
+                ROYAL<small>DOORS AND WINDOWS</small>
+              </div>
+              <div className="seller-meta">
+                {settings.addressLines.join(", ")}
+                <br />
+                GSTIN/UIN: {settings.gstin} &nbsp;·&nbsp; State: {settings.stateName}, Code: {settings.stateCode}
+                {settings.phone && <> &nbsp;·&nbsp; {settings.phone}</>}
+              </div>
             </div>
           </div>
           <div style={{ textAlign: "right" }}>

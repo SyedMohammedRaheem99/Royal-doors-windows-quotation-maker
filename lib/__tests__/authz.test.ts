@@ -1,66 +1,127 @@
 import { describe, expect, it } from "vitest";
-import { actorFromSession, canAccessOwned, canManageSettings, ownershipFilter } from "../authz";
+import { actorFromSession, canAccessOwned, canManageSettings, canManageUser, ownershipFilter } from "../authz";
 import { STATUS_TRANSITIONS, type QuotationStatus } from "@/models/schemas";
 
-const admin = { id: "admin-1", role: "admin" as const };
-const sales = { id: "sales-1", role: "sales" as const };
-const otherSales = { id: "sales-2", role: "sales" as const };
+const superAdmin = { id: "super-1", role: "super_admin" as const, managedUserIds: [] };
+const admin1 = { id: "admin-1", role: "admin" as const, managedUserIds: ["worker-1"] };
+const admin2 = { id: "admin-2", role: "admin" as const, managedUserIds: ["worker-2"] };
+const worker1 = { id: "worker-1", role: "worker" as const, managedUserIds: [] };
 
 describe("ownershipFilter — what a query is allowed to return", () => {
-  it("does not restrict admins", () => {
-    expect(ownershipFilter(admin)).toEqual({});
+  it("does not restrict super_admin", () => {
+    expect(ownershipFilter(superAdmin)).toEqual({});
   });
 
-  it("restricts a sales user to their own records", () => {
-    expect(ownershipFilter(sales)).toEqual({ createdBy: "sales-1" });
+  it("restricts an admin to their own records plus their managed workers'", () => {
+    expect(ownershipFilter(admin1)).toEqual({ createdBy: { $in: ["admin-1", "worker-1"] } });
+  });
+
+  it("restricts a worker to their own records only", () => {
+    expect(ownershipFilter(worker1)).toEqual({ createdBy: "worker-1" });
   });
 
   it("is applied at the query level, so the DB never returns forbidden rows", () => {
     // Guards the design decision, not just the value: filtering in JS after
     // fetching would still pull other reps' data across the wire.
-    const filter = ownershipFilter(sales);
+    const filter = ownershipFilter(worker1);
     expect(filter).toHaveProperty("createdBy");
   });
 });
 
 describe("canAccessOwned — the rule the mutations enforce", () => {
-  it("lets an admin access anyone's record", () => {
-    expect(canAccessOwned(admin, "sales-1")).toBe(true);
-    expect(canAccessOwned(admin, "sales-2")).toBe(true);
+  it("lets super_admin access anyone's record", () => {
+    expect(canAccessOwned(superAdmin, "worker-1")).toBe(true);
+    expect(canAccessOwned(superAdmin, "admin-1")).toBe(true);
+    expect(canAccessOwned(superAdmin, "worker-2")).toBe(true);
   });
 
-  it("lets a sales user access their own record", () => {
-    expect(canAccessOwned(sales, "sales-1")).toBe(true);
+  it("lets an admin access their own record and their managed worker's", () => {
+    expect(canAccessOwned(admin1, "admin-1")).toBe(true);
+    expect(canAccessOwned(admin1, "worker-1")).toBe(true);
   });
 
-  it("BLOCKS a sales user from another rep's record", () => {
-    // This is the hole that existed: updateQuotation/duplicateQuotation/
-    // setQuotationStatus took only a userId and never checked it, so guessing
-    // a URL was enough to edit someone else's quotation.
-    expect(canAccessOwned(sales, "sales-2")).toBe(false);
-    expect(canAccessOwned(otherSales, "sales-1")).toBe(false);
+  it("BLOCKS an admin from another admin's record or their worker's", () => {
+    expect(canAccessOwned(admin1, "admin-2")).toBe(false);
+    expect(canAccessOwned(admin1, "worker-2")).toBe(false);
+  });
+
+  it("BLOCKS an admin from the super_admin's record", () => {
+    expect(canAccessOwned(admin1, "super-1")).toBe(false);
+  });
+
+  it("lets a worker access their own record", () => {
+    expect(canAccessOwned(worker1, "worker-1")).toBe(true);
+  });
+
+  it("BLOCKS a worker from another worker's or any admin's record", () => {
+    // This is the hole that existed before Phase 1: mutations took only a
+    // userId and never checked it, so guessing a URL was enough to edit
+    // someone else's quotation.
+    expect(canAccessOwned(worker1, "worker-2")).toBe(false);
+    expect(canAccessOwned(worker1, "admin-1")).toBe(false);
+    expect(canAccessOwned(worker1, "super-1")).toBe(false);
   });
 
   it("blocks a signed-out actor", () => {
-    expect(canAccessOwned(null, "sales-1")).toBe(false);
-    expect(canAccessOwned(undefined, "sales-1")).toBe(false);
+    expect(canAccessOwned(null, "worker-1")).toBe(false);
+    expect(canAccessOwned(undefined, "worker-1")).toBe(false);
   });
 });
 
-describe("canManageSettings — admin-only areas", () => {
-  it("allows admins", () => {
-    expect(canManageSettings(admin)).toBe(true);
+describe("canManageUser — the account-management hierarchy (distinct from record ownership)", () => {
+  const targetAdmin1 = { id: "admin-1", role: "admin" as const, managedBy: "super-1" };
+  const targetWorker1 = { id: "worker-1", role: "worker" as const, managedBy: "admin-1" };
+  const targetWorker2 = { id: "worker-2", role: "worker" as const, managedBy: "admin-2" };
+  const targetSuperAdmin = { id: "super-1", role: "super_admin" as const };
+
+  it("lets super_admin manage any admin or worker", () => {
+    expect(canManageUser(superAdmin, targetAdmin1)).toBe(true);
+    expect(canManageUser(superAdmin, targetWorker1)).toBe(true);
+    expect(canManageUser(superAdmin, targetWorker2)).toBe(true);
   });
 
-  it("denies sales users and signed-out visitors", () => {
-    expect(canManageSettings(sales)).toBe(false);
+  it("never lets anyone manage a super_admin, including another super_admin", () => {
+    expect(canManageUser(superAdmin, targetSuperAdmin)).toBe(false);
+    expect(canManageUser(admin1, targetSuperAdmin)).toBe(false);
+  });
+
+  it("lets an admin manage a worker they created, not one they didn't", () => {
+    expect(canManageUser(admin1, targetWorker1)).toBe(true);
+    expect(canManageUser(admin1, targetWorker2)).toBe(false);
+  });
+
+  it("does not let an admin manage another admin", () => {
+    expect(canManageUser(admin2, targetAdmin1)).toBe(false);
+  });
+
+  it("never lets a worker manage any account, including their own", () => {
+    expect(canManageUser(worker1, targetWorker1)).toBe(false);
+  });
+
+  it("blocks a signed-out actor", () => {
+    expect(canManageUser(null, targetWorker1)).toBe(false);
+  });
+});
+
+describe("canManageSettings — admin-tier areas (Rate Master, Settings)", () => {
+  it("allows admin and super_admin", () => {
+    expect(canManageSettings(admin1)).toBe(true);
+    expect(canManageSettings(superAdmin)).toBe(true);
+  });
+
+  it("denies workers and signed-out visitors", () => {
+    expect(canManageSettings(worker1)).toBe(false);
     expect(canManageSettings(null)).toBe(false);
   });
 });
 
-describe("actorFromSession", () => {
+describe("actorFromSession — sync narrowing (managedUserIds always empty; use resolveActor for the real list)", () => {
   it("narrows a valid session", () => {
-    expect(actorFromSession({ user: { id: "u1", role: "sales" } })).toEqual({ id: "u1", role: "sales" });
+    expect(actorFromSession({ user: { id: "u1", role: "worker" } })).toEqual({
+      id: "u1",
+      role: "worker",
+      managedUserIds: [],
+    });
   });
 
   it("returns null when signed out or the session is incomplete", () => {

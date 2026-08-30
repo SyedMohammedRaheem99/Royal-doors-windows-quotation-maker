@@ -96,5 +96,5 @@ const quotation: Quotation = {
 };
 
 export default function DevPrintPage() {
-  return <QuotationDocument quotation={quotation} settings={SETTINGS_SEED} />;
+  return <QuotationDocument quotation={quotation} settings={SETTINGS_SEED} preparedByName="Azgar Ali" />;
 }

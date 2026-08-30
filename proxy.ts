@@ -41,5 +41,6 @@ export const config = {
     "/customers/:path*",
     "/rates/:path*",
     "/settings/:path*",
+    "/users/:path*",
   ],
 };

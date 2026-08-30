@@ -1,8 +1,11 @@
 # Roadmap — to industry standard
 
-> **Status: Phases 1–7 complete.** 82 unit tests + 7 browser suites (41 assertions)
-> all passing. Remaining: 8 (Tax Invoice), 9 (sharing), 10 (quotation UX),
-> 11 (rate admin), 12 (mobile/PWA), 13 (reporting), 14 (Atlas), 15 (deploy + branding).
+> **Status: Phases 1–11 complete**, plus a client-requested scope addition that sits outside
+> this roadmap (three-tier roles, user management, mobile responsiveness, branding — see
+> `HANDOFF-roles-mobile-branding.md`). 137 unit tests passing.
+>
+> Remaining: **12 (PWA half only** — the responsive half is done), 13 (reporting), 14 (Atlas),
+> **15 (deploy** — the branding half is done, real logo is in).
 
 
 15 phases, ordered so that each one rests on the last. Correctness and security

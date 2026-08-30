@@ -1,5 +1,6 @@
+import { ObjectId } from "mongodb";
 import { quotations as quotationsCollection, users as usersCollection } from "./collections";
-import { isAdmin, ownershipFilter, type Actor } from "./authz";
+import { isAdminTier, ownershipFilter, type Actor } from "./authz";
 import type { QuotationStatus } from "@/models/schemas";
 
 export interface DashboardStats {
@@ -75,9 +76,16 @@ export async function getDashboardStats(actor: Actor): Promise<DashboardStats> {
         .limit(10)
         .toArray(),
 
-      isAdmin(actor)
+      isAdminTier(actor)
         ? col
             .aggregate([
+              // Previously had no $match stage at all — it silently scanned
+              // every quotation ever created, not just this actor's. That was
+              // harmless only because the old 2-role admin's ownershipFilter
+              // also returned {}; it is NOT harmless now that a plain admin
+              // is scoped to "own + managed workers'", so this must be scoped
+              // the same way as every other query in this function.
+              { $match: ownership },
               { $group: { _id: "$createdBy", count: { $sum: 1 }, value: { $sum: "$totals.grandTotal" } } },
               { $sort: { value: -1 } },
             ])
@@ -90,7 +98,11 @@ export async function getDashboardStats(actor: Actor): Promise<DashboardStats> {
   let repBreakdownResult: DashboardStats["repBreakdown"];
   if (repBreakdown) {
     const usersCol = await usersCollection();
-    const allUsers = await usersCol.find({}).toArray();
+    // Scoped to the same id set the breakdown itself covers, rather than the
+    // whole users collection — an admin's repBreakdown should only resolve
+    // names for themself and the workers they manage.
+    const repIds = repBreakdown.map((r) => String(r._id)).filter((id) => ObjectId.isValid(id));
+    const allUsers = await usersCol.find({ _id: { $in: repIds.map((id) => new ObjectId(id)) } }).toArray();
     const nameById = new Map(allUsers.map((u) => [u._id.toString(), u.name]));
     repBreakdownResult = repBreakdown.map((r) => ({
       userId: String(r._id),

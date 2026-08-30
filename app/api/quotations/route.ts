@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { createQuotation, listQuotationsFor } from "@/lib/quotations";
 import { QuotationInputSchema } from "@/models/schemas";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const page = Number(new URL(request.url).searchParams.get("page")) || 1;
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();

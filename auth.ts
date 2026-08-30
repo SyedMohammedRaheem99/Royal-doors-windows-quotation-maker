@@ -1,9 +1,10 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { compare } from "bcryptjs";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
 import { getDb } from "./lib/db";
+import { verifyPassword } from "./lib/password";
+import type { UserRole } from "./models/schemas";
 
 const CredentialsSchema = z.object({
   email: z.string().email(),
@@ -24,14 +25,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await db.collection("users").findOne({ email });
         if (!user) return null;
 
-        const passwordMatches = await compare(password, user.passwordHash);
+        const passwordMatches = await verifyPassword(password, user.passwordHash);
         if (!passwordMatches) return null;
+
+        if (user.active === false) return null;
 
         return {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
-          role: user.role as "admin" | "sales",
+          role: user.role as UserRole,
         };
       },
     }),

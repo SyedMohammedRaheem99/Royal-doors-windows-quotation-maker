@@ -1,7 +1,13 @@
 /**
- * Seeds MongoDB with the rate card, settings, and one admin user.
+ * Seeds MongoDB with the rate card, settings, and one super_admin user.
  * Safe to re-run: rate card and settings upsert by productType / singleton,
- * the admin user is only created if no user with that email exists yet.
+ * the user is only created if no user with that email exists yet.
+ *
+ * super_admin is the one owner account and is ONLY ever created this way —
+ * there is deliberately no in-app UI to create one, and no forgot-password
+ * flow for it either (see lib/authz.ts / lib/users.ts). Admin and worker
+ * accounts are created afterwards from the app's Users screen by whoever
+ * manages them.
  *
  * Usage:
  *   npm run seed -- --email you@example.com --password "changeme" --name "Azgar"
@@ -9,9 +15,9 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 import { MongoClient } from "mongodb";
-import bcrypt from "bcryptjs";
 import { RATE_CARD_SEED } from "../models/rateCardSeed";
 import { SETTINGS_SEED } from "../models/settingsSeed";
+import { hashPassword } from "../lib/password";
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -31,14 +37,11 @@ async function main() {
     throw new Error("MONGODB_URI is not set. Copy .env.local.example to .env.local first.");
   }
 
-  const { email, password, name, role = "admin" } = parseArgs();
+  const { email, password, name } = parseArgs();
   if (!email || !password || !name) {
     throw new Error(
-      'Usage: npm run seed -- --email you@example.com --password "changeme" --name "Your Name" [--role admin|sales]'
+      'Usage: npm run seed -- --email you@example.com --password "changeme" --name "Your Name"'
     );
-  }
-  if (role !== "admin" && role !== "sales") {
-    throw new Error(`--role must be "admin" or "sales", got "${role}".`);
   }
 
   const client = new MongoClient(uri);
@@ -63,15 +66,22 @@ async function main() {
     console.log("Settings document created.");
   }
 
-  // --- user ---
+  // --- super_admin user ---
   const users = db.collection("users");
   const existingUser = await users.findOne({ email });
   if (existingUser) {
     console.log(`User ${email} already exists — skipping.`);
   } else {
-    const passwordHash = await bcrypt.hash(password, 10);
-    await users.insertOne({ name, email, passwordHash, role, createdAt: new Date() });
-    console.log(`${role === "admin" ? "Admin" : "Sales"} user created: ${email}`);
+    const passwordHash = await hashPassword(password);
+    await users.insertOne({
+      name,
+      email,
+      passwordHash,
+      role: "super_admin",
+      active: true,
+      createdAt: new Date(),
+    });
+    console.log(`Super admin user created: ${email}`);
   }
 
   await client.close();

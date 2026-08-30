@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { listQuotationsFor } from "@/lib/quotations";
 import { withRevisionSuffix } from "@/lib/numbering";
 import { StatusBadge } from "@/components/quotations/StatusBadge";
@@ -15,7 +15,7 @@ export default async function QuotationsListPage({
 }) {
   const { q, status, page: pageParam } = await searchParams;
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) redirect("/login");
 
   const parsedStatus = QuotationStatus.safeParse(status);
@@ -28,14 +28,14 @@ export default async function QuotationsListPage({
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-neutral-900">Quotations</h1>
-        <Link href="/quotations/new" className="rounded bg-[#0f3d2e] px-4 py-2 text-sm font-semibold text-[#c9a227] hover:bg-[#0c3125]">
+        <Link href="/quotations/new" className="shrink-0 rounded bg-[#0f3d2e] px-3 py-2 text-sm font-semibold text-[#c9a227] hover:bg-[#0c3125] sm:px-4">
           + New quotation
         </Link>
       </div>
 
-      <form className="mb-4 flex gap-3">
+      <form className="mb-4 flex flex-col gap-3 sm:flex-row">
         <input
           type="text"
           name="q"
@@ -59,7 +59,10 @@ export default async function QuotationsListPage({
         </button>
       </form>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      {/* Table at md:+, stacked cards on mobile — the columns here don't
+          collapse cleanly, so this renders two paths off the same data
+          rather than one CSS-only responsive-table trick. */}
+      <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white md:block">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
             <tr>
@@ -97,6 +100,36 @@ export default async function QuotationsListPage({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-2 md:hidden">
+        {quotations.map((quotation) => (
+          <Link
+            key={quotation._id.toString()}
+            href={`/quotations/${quotation._id}`}
+            className="block rounded-lg border border-neutral-200 bg-white p-3 hover:bg-neutral-50"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium text-[#0f3d2e]">{withRevisionSuffix(quotation.quoteNo, quotation.revision)}</p>
+                <p className="text-sm text-neutral-700">{quotation.customer.name}</p>
+                <p className="text-xs text-neutral-500">{quotation.customer.project || "—"}</p>
+              </div>
+              <StatusBadge status={quotation.status} />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs text-neutral-500">
+              <span>{new Date(quotation.date).toLocaleDateString("en-IN")}</span>
+              <span className="text-sm font-medium text-neutral-900">
+                ₹{quotation.totals.grandTotal.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </Link>
+        ))}
+        {quotations.length === 0 && (
+          <p className="rounded-lg border border-neutral-200 bg-white px-4 py-8 text-center text-sm text-neutral-400">
+            No quotations found.
+          </p>
+        )}
       </div>
 
       <Pagination page={page} hasMore={hasMore} basePath="/quotations" searchParams={{ q, status }} />

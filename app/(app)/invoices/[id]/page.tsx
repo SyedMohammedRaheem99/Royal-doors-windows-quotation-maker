@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { loadInvoiceFor } from "@/lib/invoices";
 import { amountInWords } from "@/lib/words";
 
@@ -10,7 +10,7 @@ import { amountInWords } from "@/lib/words";
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) notFound();
 
   const loaded = await loadInvoiceFor(id, actor);

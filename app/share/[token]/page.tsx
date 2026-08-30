@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { settings as settingsCollection } from "@/lib/collections";
 import { recordShareView, resolveShareToken } from "@/lib/sharing";
+import { getPreparedByName } from "@/lib/users";
 import { QuotationDocument } from "@/components/print/QuotationDocument";
 import type { Quotation, Settings } from "@/models/schemas";
 
@@ -35,8 +36,10 @@ export default async function SharedQuotationPage({ params }: { params: Promise<
   // Fire-and-forget; a failure here must not break the customer's page.
   void recordShareView(token);
 
+  const preparedByName = await getPreparedByName(quotation.createdBy);
+
   const plainQuotation = JSON.parse(JSON.stringify(quotation)) as Quotation;
   const plainSettings = JSON.parse(JSON.stringify(settingsDoc)) as Settings;
 
-  return <QuotationDocument quotation={plainQuotation} settings={plainSettings} />;
+  return <QuotationDocument quotation={plainQuotation} settings={plainSettings} preparedByName={preparedByName} />;
 }

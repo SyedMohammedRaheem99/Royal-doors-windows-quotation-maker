@@ -85,6 +85,19 @@ export const INVOICE_INDEXES: IndexDescription[] = [
   },
 ];
 
+export const RATE_CHANGE_INDEXES: IndexDescription[] = [
+  {
+    // The history view is newest-first; this is the only way it's read.
+    key: { changedAt: -1 },
+    name: "changedAt_desc",
+  },
+  {
+    // Supports "what has this product's rate done over time".
+    key: { productType: 1, changedAt: -1 },
+    name: "productType_changedAt",
+  },
+];
+
 export const USER_INDEXES: IndexDescription[] = [
   {
     // Auth looks up by email on every login; must also be unique — two users
@@ -92,6 +105,13 @@ export const USER_INDEXES: IndexDescription[] = [
     key: { email: 1 },
     name: "email_unique",
     unique: true,
+  },
+  {
+    // resolveActor() runs this lookup on every request made by an `admin`
+    // actor, to resolve which workers they manage — a hot path, not an
+    // occasional admin-screen query.
+    key: { managedBy: 1 },
+    name: "managedBy",
   },
 ];
 
@@ -111,4 +131,5 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await db.collection("invoices").createIndexes(INVOICE_INDEXES);
   await db.collection("users").createIndexes(USER_INDEXES);
   await db.collection("rateCard").createIndexes(RATE_CARD_INDEXES);
+  await db.collection("rateChanges").createIndexes(RATE_CHANGE_INDEXES);
 }

@@ -27,7 +27,7 @@ export function TotalsPanel({
     <div className="rounded-lg border border-neutral-200 bg-white p-4">
       <h2 className="mb-3 text-sm font-semibold text-neutral-700">Totals</h2>
 
-      <div className="mb-4 grid grid-cols-2 gap-4">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-medium text-neutral-500">Transportation (₹)</label>
           <input

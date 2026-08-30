@@ -20,6 +20,7 @@ export function quotationToBuilderState(quotation: Quotation, terms: TermsLibrar
     rate: item.rate,
     specs: item.specs,
     surcharges: item.surcharges,
+    toughenedGlassMm: item.toughenedGlassMm,
     remarks: item.remarks,
   }));
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { listCustomersFor } from "@/lib/customers";
 import { Pagination } from "@/components/ui/Pagination";
 
@@ -12,7 +12,7 @@ export default async function CustomersListPage({
 }) {
   const { q, page: pageParam } = await searchParams;
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) redirect("/login");
 
   const page = Math.max(1, Number(pageParam) || 1);
@@ -32,7 +32,7 @@ export default async function CustomersListPage({
         />
       </form>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white md:block">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
             <tr>
@@ -64,6 +64,26 @@ export default async function CustomersListPage({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-2 md:hidden">
+        {customers.map((customer) => (
+          <Link
+            key={customer._id.toString()}
+            href={`/customers/${customer._id}`}
+            className="block rounded-lg border border-neutral-200 bg-white p-3 hover:bg-neutral-50"
+          >
+            <p className="font-medium text-[#0f3d2e]">{customer.name}</p>
+            <p className="text-sm text-neutral-700">{customer.phone || "—"}</p>
+            <p className="text-xs text-neutral-500">{customer.project || customer.siteAddress || "—"}</p>
+            {customer.referredBy && <p className="mt-1 text-xs text-neutral-400">Ref: {customer.referredBy}</p>}
+          </Link>
+        ))}
+        {customers.length === 0 && (
+          <p className="rounded-lg border border-neutral-200 bg-white px-4 py-8 text-center text-sm text-neutral-400">
+            No customers yet — they appear here automatically the first time you save a quotation.
+          </p>
+        )}
       </div>
 
       <Pagination page={page} hasMore={hasMore} basePath="/customers" searchParams={{ q }} />

@@ -42,7 +42,24 @@ turned up concrete failure modes this app is built to prevent:
   suffixes.
 - **Duplicate as a variant** — same measurements, new quote number, ready to re-price (a workflow
   the historical data showed was already being done by hand).
-- **Customer history**, rate master, company/bank settings, and role-based login (admin / sales).
+- **Customer history**, rate master, company/bank settings, and a three-tier role hierarchy.
+
+## Roles
+
+Three tiers, each seeing strictly less than the one above:
+
+| Role | Sees | Creates | Notes |
+|---|---|---|---|
+| `super_admin` | Everything | admins + workers | One owner account, created by the seed script only. |
+| `admin` | Own + their own workers' records | workers | Never sees another admin's, their workers', or the super admin's records. |
+| `worker` | Own records only | — | The on-site salesperson. |
+
+Enforced centrally in `lib/authz.ts` — every read and mutation is scoped through
+`ownershipFilter` / `canAccessOwned`, so a new page can't forget the check.
+
+There is no self-service password reset: the super admin's credentials are set once by the seed
+script, and admin/worker passwords are reset for them from the Users screen by whoever manages
+them (there is no email infrastructure in this app).
 
 ## Stack
 
@@ -64,10 +81,21 @@ For `MONGODB_URI`, either point at a MongoDB Atlas cluster, or run a local one f
 node scripts/local-mongo.mjs   # leave running; prints the URI to use
 ```
 
-Seed the rate card, settings and an admin user:
+Seed the rate card, settings and the super admin account:
 
 ```bash
 npm run seed -- --email you@example.com --password "<pick-one>" --name "Your Name"
+```
+
+The seed script creates a `super_admin` — the one owner account. Admin and worker accounts are
+created afterwards from the app's **Users** screen, not from the CLI.
+
+If you are upgrading an install that predates the three-tier roles, run the migration once. It
+promotes the existing admin to `super_admin`, converts `sales` users to `worker`, and is safe to
+re-run:
+
+```bash
+npm run migrate
 ```
 
 Then:
@@ -94,7 +122,7 @@ npm run build && npm run start          # in one terminal
 npm run test:e2e -- <adminEmail> <adminPass> <salesEmail> <salesPass>
 ```
 
-The browser suites cover authorization (a sales user must not reach another user's quotation by
+The browser suites cover authorization (a worker must not reach another user's quotation by
 URL, API, print view, or list), customer scoping, unique-index enforcement against a real
 database, pagination, dashboard figures against a known dataset, and the full create → print →
 edit → duplicate journey.
@@ -106,20 +134,26 @@ stale-GST bug above cannot recur.
 ## Project layout
 
 ```
-app/(app)/        authenticated pages — quotations, customers, rates, settings
-app/(print)/      the print-only quotation document route
+app/(app)/        authenticated pages — quotations, customers, rates, settings, users
+app/(print)/      the print-only quotation and invoice document routes
 app/dev/          dev-only visual QA harnesses (diagram gallery, builder, print, rates)
+proxy.ts          route protection (Next.js 16's renamed middleware.ts)
 components/
   builder/        the quotation builder UI
   diagram/        the SVG window/door diagram engine
-  print/          the branded A4 document
+  nav/            the mobile navigation drawer
+  print/          the branded A4 documents
+  users/          the user-management screen
 lib/
+  authz.ts        the three-tier role hierarchy — every read/write is scoped here
   pricing.ts      all money math — pure and unit-tested
+  money.ts        rupee formatting for anything a customer reads
   dimensions.ts   mm -> billed-feet conversion
   quotations.ts   the single write path for quotations
+  users.ts        account creation, password reset, deactivation
   words.ts        amount in words (Indian lakh/crore)
 models/           Zod schemas, plus rate-card and settings seed data
-scripts/          seeding, a local MongoDB, and Playwright QA scripts
+scripts/          seeding, migration, a local MongoDB, and Playwright QA scripts
 ```
 
 ## Notes
@@ -129,3 +163,10 @@ scripts/          seeding, a local MongoDB, and Playwright QA scripts
   dimensions and rate before writing.
 - **Customer details and rates are snapshotted into each quotation.** Editing the rate master later
   must never silently change a quotation already sent to a customer.
+- **Money shown to a customer is formatted through `lib/money.ts`, never bare `toLocaleString`.**
+  `toLocaleString("en-IN")` drops trailing zeros, so a ₹1,77,677.50 total printed as
+  "₹1,77,677.5" — a single decimal place — on documents that went to customers. `formatINR` always
+  renders two decimals.
+- **Authorization is scoped in `lib/`, not in pages.** Use `resolveActor(session)` (async) at every
+  page, server action and API route — it resolves an admin's managed workers. The sync
+  `actorFromSession` returns an empty manager list and must not be used for data access.

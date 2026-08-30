@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { actorFromSession } from "@/lib/authz";
+import { resolveActor } from "@/lib/authz";
 import { loadCustomerWithHistory } from "@/lib/customers";
 import { withRevisionSuffix } from "@/lib/numbering";
 import { StatusBadge } from "@/components/quotations/StatusBadge";
@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/quotations/StatusBadge";
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const actor = actorFromSession(await auth());
+  const actor = await resolveActor(await auth());
   if (!actor) redirect("/login");
 
   const loaded = await loadCustomerWithHistory(id, actor);
@@ -25,19 +25,22 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-6 flex items-baseline justify-between">
-        <div>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-baseline sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-neutral-900">{customer.name}</h1>
           <p className="text-sm text-neutral-500">
             {[customer.phone, customer.siteAddress].filter(Boolean).join(" · ") || "No contact details"}
           </p>
         </div>
-        <Link href="/quotations/new" className="rounded bg-[#0f3d2e] px-4 py-2 text-sm font-semibold text-[#c9a227] hover:bg-[#0c3125]">
+        <Link
+          href="/quotations/new"
+          className="shrink-0 self-start rounded bg-[#0f3d2e] px-4 py-2 text-sm font-semibold text-[#c9a227] hover:bg-[#0c3125] sm:self-auto"
+        >
           + New quotation
         </Link>
       </div>
 
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
         <div className="rounded-lg border border-neutral-200 bg-white p-4">
           <p className="text-xs text-neutral-400">Quotations</p>
           <p className="text-lg font-semibold text-neutral-900">{quotations.length}</p>
@@ -53,7 +56,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       </div>
 
       <h2 className="mb-3 text-sm font-semibold text-neutral-700">Quotation history</h2>
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white md:block">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
             <tr>
@@ -89,6 +92,36 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-2 md:hidden">
+        {quotations.map((quotation) => (
+          <Link
+            key={quotation._id.toString()}
+            href={`/quotations/${quotation._id}`}
+            className="block rounded-lg border border-neutral-200 bg-white p-3 hover:bg-neutral-50"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-[#0f3d2e]">
+                {withRevisionSuffix(quotation.quoteNo, quotation.revision)}
+              </span>
+              <span className="shrink-0 text-sm font-medium text-neutral-900">
+                ₹{quotation.totals.grandTotal.toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-xs text-neutral-500">
+                {quotation.customer.project || "—"} · {new Date(quotation.date).toLocaleDateString("en-IN")}
+              </span>
+              <StatusBadge status={quotation.status} />
+            </div>
+          </Link>
+        ))}
+        {quotations.length === 0 && (
+          <p className="rounded-lg border border-neutral-200 bg-white px-4 py-8 text-center text-sm text-neutral-400">
+            No quotations yet for this customer.
+          </p>
+        )}
       </div>
     </div>
   );
