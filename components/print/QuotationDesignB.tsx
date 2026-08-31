@@ -271,12 +271,18 @@ export function QuotationDesignB({
         }
         .db-logo-group { display: flex; align-items: center; gap: 4mm; }
         .db-logo-box {
-          width: 17mm; height: 17mm;
+          width: 18mm; height: 18mm;
           background: white;
-          border-radius: 4px;
-          padding: 1.5mm;
+          border-radius: 50%;
+          border: 1.5pt solid var(--accent-lt);
+          padding: 2mm;
           display: flex; align-items: center; justify-content: center;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
         }
+        /* No border-radius on the img itself — the logo art is a square
+           mark, and clipping it into a circle would cut into the "R"
+           artwork. The circle is the white badge around it (.db-logo-box);
+           the image sits inside at full size, uncropped. */
         .db-logo-box img { width: 100%; height: 100%; object-fit: contain; }
         .db-brand-name {
           font-size: 21pt;
@@ -561,7 +567,9 @@ export function QuotationDesignB({
           text-transform: uppercase;
           opacity: 0.8;
           display: flex;
-          gap: 4mm;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 2.5mm;
         }
 
         /* ════════════════════════════════════
@@ -1131,6 +1139,10 @@ export function QuotationDesignB({
               instead of the few mm it needed being handled by ordinary flow. */}
           <div className="db-footer">
             <div className="db-footer-caps">
+              <span>Premium Hardware</span>
+              <span>·</span>
+              <span>{quotation.terms.warrantyYears}-Year Warranty (Profile)</span>
+              <span>·</span>
               <span>Sound Insulation</span>
               <span>·</span>
               <span>Weather Resistant</span>
