@@ -53,13 +53,18 @@ function PageHeader({
               of one giant image forcing both to scale together.
               eslint-disable-next-line @next/next/no-img-element -- print
               document renders outside next/image's optimization pipeline. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/navbarlogo_withouttxt.png" alt="" className="db-navlogo-icon" />
+          <div className="db-navlogo-icon-frame">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/navbarlogo_withouttxt.png" alt="" className="db-navlogo-icon" />
+          </div>
           <div className="db-navlogo-text">
             <div className="db-brand-name">ROYAL</div>
             <div className="db-brand-sub">Doors &amp; Windows</div>
           </div>
         </div>
+        {/* Vertical gold rule separating the identity block from the
+            document-type block — see .db-header-divider for why. */}
+        <span className="db-header-divider" aria-hidden="true" />
         <div className="db-header-right">
           <div className="db-doc-type">QUOTATION</div>
           <div className="db-quote-no">{quoteNo}</div>
@@ -279,7 +284,13 @@ export function QuotationDesignB({
           background: #023F28;
           padding: 7mm 15mm;
           display: flex;
-          justify-content: space-between;
+          /* Was justify-content:space-between across two children (logo
+             group, right block). A third child (.db-header-divider) was
+             added between them for the vertical gold rule; space-between
+             across three items would centre-space the divider with equal
+             gaps either side instead of sitting snug against the logo group,
+             so the right block now pushes itself to the edge with
+             margin-left:auto on .db-header-right instead. */
           align-items: center;
           border-bottom: 3pt solid var(--accent);
           flex-shrink: 0;
@@ -298,7 +309,7 @@ export function QuotationDesignB({
           background: radial-gradient(ellipse 60% 100% at 15% 0%, rgba(201,150,42,0.10) 0%, transparent 60%);
           pointer-events: none;
         }
-        .db-logo-group { display: flex; align-items: center; gap: 4mm; }
+        .db-logo-group { display: flex; align-items: center; gap: 2mm; }
         /* Transparent-background icon (navbarlogo_withouttxt.png) — no
            background colour to ever match or clash with anything, which is
            what the earlier full-banner asset (navlogo_final.png) couldn't
@@ -308,13 +319,44 @@ export function QuotationDesignB({
            at ~1.5 rows worth at its largest, since icon+text+tagline all
            scaled together as one image). 17mm keeps the icon prominent
            without repeating that cost — noticeably larger than the original
-           small badge, but not a full-height banner. */
-        .db-navlogo-icon { height: 17mm; width: auto; display: block; }
+           small badge, but not a full-height banner.
+
+           A thin gold ring frames it, echoing the gold "|" divider and
+           tagline rules already used elsewhere. Measured the source PNG's
+           actual artwork bounding box (not just its canvas size): it carries
+           ~8% of transparent padding on its right edge alone, which combined
+           with the flex gap doubled up as visible dead space between the
+           icon and "ROYAL". Oversizing the image to 118% within an
+           overflow:hidden circular frame pushes that built-in padding
+           outside the visible crop, rather than trying to fix it with more
+           negative margin guesswork. */
+        .db-navlogo-icon-frame {
+          width: 15.5mm; height: 15.5mm;
+          border-radius: 50%;
+          border: 1pt solid var(--accent);
+          padding: 1.6mm;
+          display: flex; align-items: center; justify-content: center;
+          overflow: hidden;
+          flex-shrink: 0;
+          box-shadow: 0 0 0 1px rgba(232,184,75,0.15);
+        }
+        .db-navlogo-icon {
+          width: 118%; height: 118%;
+          object-fit: contain;
+          display: block;
+        }
         .db-navlogo-text { display: flex; flex-direction: column; }
         .db-brand-name {
           font-size: 20pt;
           font-weight: 800;
-          color: var(--accent-lt);
+          /* Rich metallic gradient instead of a flat gold fill — matches the
+             dimensional look of the gold in the client's own reference
+             artwork rather than a single flat tint. background-clip:text
+             paints the gradient through the glyphs themselves. */
+          background: linear-gradient(180deg, #F5D687 0%, var(--accent-lt) 45%, var(--accent) 75%, #A8791E 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
           letter-spacing: 0.1em;
           line-height: 1;
           font-family: Georgia, "Times New Roman", serif;
@@ -327,7 +369,31 @@ export function QuotationDesignB({
           letter-spacing: 0.16em;
           margin-top: 1.5mm;
         }
-        .db-header-right { text-align: right; }
+        /* Vertical gold divider, matching the "|" that separates the icon
+           from the wordmark in the client's own reference logo artwork.
+           Placed between the logo group and the QUOTATION block so the
+           header reads as two clearly separated zones instead of a flat
+           expanse of green with two islands of content — this is the "feels
+           very basic" gap the header had once the solid banner image (which
+           supplied its own visual density) was replaced by a lighter
+           icon+text lockup. */
+        .db-header-divider {
+          width: 1px;
+          align-self: stretch;
+          margin: 1mm 8mm;
+          background: linear-gradient(180deg, transparent 0%, rgba(232,184,75,0.55) 20%, rgba(232,184,75,0.55) 80%, transparent 100%);
+        }
+        .db-header-right { text-align: right; margin-left: auto; }
+        /* Screen-only reserve so "QUOTATION" never renders under the fixed
+           Print/Save button (top-right overlay, hidden in the actual print
+           output via .no-print) — pushing .db-header-right flush to the
+           header's own right edge via margin-left:auto brought the two into
+           the same screen region once the divider tightened the layout.
+           Print/PDF output is unaffected since this rule is screen-only and
+           the button never appears there regardless. */
+        @media screen {
+          .db-header-right { padding-right: 34mm; }
+        }
         .db-doc-type {
           font-size: 17pt;
           font-weight: 800;
@@ -469,16 +535,14 @@ export function QuotationDesignB({
           color: var(--ink-faint);
           margin-top: 0.5mm;
         }
-        /* Grand Total cell: the one figure on this strip that should still
-           dominate, so it keeps a filled background while its two siblings
-           go quiet paper-and-ink. */
-        .db-stripe-cell--total {
-          background: var(--brand);
-          border-right: none;
-        }
-        .db-stripe-cell--total .db-stripe-label { color: var(--accent-lt); opacity: 0.85; }
-        .db-stripe-cell--total .db-stripe-value { color: var(--accent-lt); }
-        .db-stripe-cell--total .db-stripe-unit { color: rgba(232,184,75,0.7); }
+        /* Grand Total cell previously kept a filled green background to make
+           it dominate the strip; asked to tone that down — it now matches
+           its two siblings exactly (plain paper, no fill). The figure is
+           still the largest text on the strip via .db-stripe-value's own
+           font-size, so it isn't competing on equal footing with "25" or
+           "980.0" even without a coloured block around it — the class is
+           kept as a hook in case a lighter distinction is wanted later,
+           it just carries no rules of its own for now. */
 
         /* ── Product Table ── */
         .db-table {
