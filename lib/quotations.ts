@@ -54,13 +54,6 @@ export async function loadQuotationFor(id: string, actor: Actor): Promise<Result
   return ok(doc);
 }
 
-/** Unscoped read. Only for contexts that have already authorized the caller. */
-export async function getQuotationById(id: string): Promise<StoredQuotation | null> {
-  if (!ObjectId.isValid(id)) return null;
-  const col = await quotationsCollection();
-  return col.findOne({ _id: new ObjectId(id) });
-}
-
 export const QUOTATIONS_PAGE_SIZE = 25;
 
 export interface Page<T> {

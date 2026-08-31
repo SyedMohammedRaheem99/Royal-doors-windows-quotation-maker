@@ -6,6 +6,10 @@
 // Usage: npm run migrate
 import { config } from "dotenv";
 config({ path: ".env.local" });
+import dns from "node:dns";
+// See scripts/seed.ts for why: some ISP resolvers can't answer the SRV
+// lookup mongodb+srv:// needs even though the OS resolver can.
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import { MongoClient } from "mongodb";
 
 async function main() {
@@ -23,8 +27,15 @@ async function main() {
   // module is TypeScript and this script runs standalone via tsx, so a
   // direct import works, but keeping the index specs co-located in one file
   // and just calling it is simplest.
-  const { ensureIndexes, QUOTATION_INDEXES, CUSTOMER_INDEXES, INVOICE_INDEXES, USER_INDEXES, RATE_CARD_INDEXES } =
-    await import("../lib/indexes.ts");
+  const {
+    ensureIndexes,
+    QUOTATION_INDEXES,
+    CUSTOMER_INDEXES,
+    INVOICE_INDEXES,
+    USER_INDEXES,
+    RATE_CARD_INDEXES,
+    LOGIN_ATTEMPT_INDEXES,
+  } = await import("../lib/indexes.ts");
 
   await ensureIndexes(db);
 
@@ -33,10 +44,11 @@ async function main() {
     CUSTOMER_INDEXES.length +
     INVOICE_INDEXES.length +
     USER_INDEXES.length +
-    RATE_CARD_INDEXES.length;
-  console.log(`Ensured ${total} indexes across quotations, customers, invoices, users, rateCard.`);
+    RATE_CARD_INDEXES.length +
+    LOGIN_ATTEMPT_INDEXES.length;
+  console.log(`Ensured ${total} indexes across quotations, customers, invoices, users, rateCard, loginAttempts.`);
 
-  for (const name of ["quotations", "customers", "invoices", "users", "rateCard"]) {
+  for (const name of ["quotations", "customers", "invoices", "users", "rateCard", "loginAttempts"]) {
     const indexes = await db.collection(name).listIndexes().toArray();
     console.log(`  ${name}: ${indexes.map((i) => i.name).join(", ")}`);
   }

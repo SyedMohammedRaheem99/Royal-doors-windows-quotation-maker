@@ -1,10 +1,15 @@
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { resolveActor } from "@/lib/authz";
 import { getDb } from "@/lib/db";
 import { createQuotation } from "@/lib/quotations";
 import { QuotationBuilder, type QuotationSavePayload, type SaveResult } from "@/components/builder/QuotationBuilder";
 import { QuotationInputSchema, type RateCardEntry, type Settings } from "@/models/schemas";
 
 export default async function NewQuotationPage() {
+  const actor = await resolveActor(await auth());
+  if (!actor) redirect("/login");
+
   const db = await getDb();
   const rateCardDocs = await db.collection("rateCard").find({ active: true }).sort({ category: 1, label: 1 }).toArray();
   const settingsDoc = await db.collection("settings").findOne({});

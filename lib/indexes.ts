@@ -125,6 +125,21 @@ export const RATE_CARD_INDEXES: IndexDescription[] = [
   },
 ];
 
+export const LOGIN_ATTEMPT_INDEXES: IndexDescription[] = [
+  {
+    key: { email: 1 },
+    name: "email_unique",
+    unique: true,
+  },
+  {
+    // Auto-expires lockout windows so the collection doesn't grow forever —
+    // 900s matches lib/loginThrottle.ts's WINDOW_MS exactly.
+    key: { windowStart: 1 },
+    name: "windowStart_ttl",
+    expireAfterSeconds: 900,
+  },
+];
+
 export async function ensureIndexes(db: Db): Promise<void> {
   await db.collection("quotations").createIndexes(QUOTATION_INDEXES);
   await db.collection("customers").createIndexes(CUSTOMER_INDEXES);
@@ -132,4 +147,5 @@ export async function ensureIndexes(db: Db): Promise<void> {
   await db.collection("users").createIndexes(USER_INDEXES);
   await db.collection("rateCard").createIndexes(RATE_CARD_INDEXES);
   await db.collection("rateChanges").createIndexes(RATE_CHANGE_INDEXES);
+  await db.collection("loginAttempts").createIndexes(LOGIN_ATTEMPT_INDEXES);
 }

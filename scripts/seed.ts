@@ -14,6 +14,14 @@
  */
 import { config } from "dotenv";
 config({ path: ".env.local" });
+import dns from "node:dns";
+// Some ISP resolvers return SRV records that Node's DNS module can't parse
+// (seen locally: mongodb+srv:// lookups fail with ECONNREFUSED even though
+// `nslookup` resolves fine). Pointing Node at a public resolver for this
+// script only sidesteps it without touching the OS/network config; the
+// mongodb+srv:// URI itself is unaffected wherever DNS works normally
+// (Vercel's servers included).
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import { MongoClient } from "mongodb";
 import { RATE_CARD_SEED } from "../models/rateCardSeed";
 import { SETTINGS_SEED } from "../models/settingsSeed";

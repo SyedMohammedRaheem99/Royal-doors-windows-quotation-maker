@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authConfig } from "./auth.config";
 import { getDb } from "./lib/db";
 import { verifyPassword } from "./lib/password";
+import { isLockedOut, recordFailedAttempt, clearAttempts } from "./lib/loginThrottle";
 import type { UserRole } from "./models/schemas";
 
 const CredentialsSchema = z.object({
@@ -21,14 +22,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
 
+        if (await isLockedOut(email)) return null;
+
         const db = await getDb();
         const user = await db.collection("users").findOne({ email });
-        if (!user) return null;
+        if (!user) {
+          await recordFailedAttempt(email);
+          return null;
+        }
 
         const passwordMatches = await verifyPassword(password, user.passwordHash);
-        if (!passwordMatches) return null;
+        if (!passwordMatches) {
+          await recordFailedAttempt(email);
+          return null;
+        }
 
         if (user.active === false) return null;
+
+        await clearAttempts(email);
 
         return {
           id: user._id.toString(),
