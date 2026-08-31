@@ -38,14 +38,27 @@ function PageHeader({
     <>
       <div className="db-header-bar">
         <div className="db-logo-group">
-          {/* Full lockup asset (icon + ROYAL + DOORS & WINDOWS + tagline) —
-              replaces the separate circular badge + typeset text. Its own
-              background is the same deep emerald as .db-header-bar, so it
-              sits flush with no visible edge. eslint-disable-next-line
-              @next/next/no-img-element -- print document renders outside
-              next/image's optimization pipeline. */}
+          {/* Transparent-background icon mark (navbarlogo_withouttxt.png) +
+              typeset text, replacing the earlier full-banner asset
+              (navlogo_final.png). That asset had its own solid background
+              baked in — first a mismatched colour that showed as a visible
+              seam, then a colour-matched flat background that forced
+              .db-header-bar off its gradient to hide the seam, and each time
+              it was sized up the whole banner (icon+text+tagline as one
+              image) grew together, eating real product-table space on page 1
+              — measured at costing roughly 1.5 rows worth of page-1 capacity
+              at its largest. A transparent PNG solves the background problem
+              at the source (nothing to match, ever), and separating the icon
+              from typeset text means each can be sized independently instead
+              of one giant image forcing both to scale together.
+              eslint-disable-next-line @next/next/no-img-element -- print
+              document renders outside next/image's optimization pipeline. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/navlogo_final.png" alt="Royal Doors & Windows" className="db-navlogo" />
+          <img src="/navbarlogo_withouttxt.png" alt="" className="db-navlogo-icon" />
+          <div className="db-navlogo-text">
+            <div className="db-brand-name">ROYAL</div>
+            <div className="db-brand-sub">Doors &amp; Windows</div>
+          </div>
         </div>
         <div className="db-header-right">
           <div className="db-doc-type">QUOTATION</div>
@@ -285,32 +298,35 @@ export function QuotationDesignB({
           background: radial-gradient(ellipse 60% 100% at 15% 0%, rgba(201,150,42,0.10) 0%, transparent 60%);
           pointer-events: none;
         }
-        .db-logo-group { display: flex; align-items: center; }
-        /* The client's finished lockup asset (icon + ROYAL + DOORS & WINDOWS
-           + tagline) replaces the separate circular badge + typeset text
-           combination this used to be.
-
-           An earlier version of this asset (navlogo.png, #001C13 flat
-           background) visibly clashed with .db-header-bar's gradient
-           (#0B4D2E -> #072F1C) — confirmed with a pixel sample, it showed up
-           as a dark rectangular seam rather than blending in. This file
-           (navlogo_final.png, #023F28) was re-exported with a background
-           colour picked from partway along that same gradient — sampled at
-           ~7 units of colour distance from the closest point on the
-           gradient, close enough that no visible edge remains. No white box
-           or border needed around it; it sits directly on the header.
-
-           Height-constrained with auto width so the 1942x809 (~2.4:1) source
-           keeps its aspect ratio; ~19mm is what the header's own vertical
-           padding (7mm top+bottom) leaves for content, matching the height
-           the previous icon+text lockup occupied. */
-        /* 19mm -> 22.8mm (+20%) -> 31.9mm (+40% more, requested after seeing
-           it in place twice). Header uses align-items:center with its own
-           vertical padding, so it grows to fit this rather than clipping
-           it — verify the header height and page count regression after any
-           further increase here, since this is now a meaningfully bigger
-           element than the header's original design budget. */
-        .db-navlogo { height: 31.9mm; width: auto; display: block; }
+        .db-logo-group { display: flex; align-items: center; gap: 4mm; }
+        /* Transparent-background icon (navbarlogo_withouttxt.png) — no
+           background colour to ever match or clash with anything, which is
+           what the earlier full-banner asset (navlogo_final.png) couldn't
+           solve: any baked-in background either clashed with the header
+           gradient or forced the header onto a flat matched colour, and
+           sizing the whole banner up cost real page-1 table space (measured
+           at ~1.5 rows worth at its largest, since icon+text+tagline all
+           scaled together as one image). 17mm keeps the icon prominent
+           without repeating that cost — noticeably larger than the original
+           small badge, but not a full-height banner. */
+        .db-navlogo-icon { height: 17mm; width: auto; display: block; }
+        .db-navlogo-text { display: flex; flex-direction: column; }
+        .db-brand-name {
+          font-size: 20pt;
+          font-weight: 800;
+          color: var(--accent-lt);
+          letter-spacing: 0.1em;
+          line-height: 1;
+          font-family: Georgia, "Times New Roman", serif;
+        }
+        .db-brand-sub {
+          font-size: 7.5pt;
+          color: white;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.16em;
+          margin-top: 1.5mm;
+        }
         .db-header-right { text-align: right; }
         .db-doc-type {
           font-size: 17pt;
@@ -409,19 +425,29 @@ export function QuotationDesignB({
         .db-kv-val { color: var(--ink); font-weight: 600; }
 
         /* ── Summary Stripe ── */
+        /* Solid green banner removed — the page already carries green in the
+           header, section bars and gold footer; one more solid block read as
+           too much of the same colour. Matches the .db-card language used
+           for Quotation Details / Prepared For just above it instead (paper
+           background, thin gold top border), so this reads as a third card
+           in the same family rather than a different kind of element. Grand
+           Total keeps a filled cell — the one figure that should still pull
+           the eye — using --brand/--accent-lt rather than a white-on-green
+           block for that same "less flat green" reason. */
         .db-stripe {
-          background: var(--brand);
-          border-radius: 5px;
+          background: var(--paper);
+          border: 1px solid var(--line);
+          border-top: 2.5pt solid var(--accent);
+          border-radius: 4px;
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
           margin-bottom: 4mm;
           overflow: hidden;
-          border: 1px solid rgba(201,150,42,0.35);
         }
         .db-stripe-cell {
           padding: 3.5mm 4mm;
           text-align: center;
-          border-right: 1px solid rgba(201,150,42,0.22);
+          border-right: 1px solid var(--line);
         }
         .db-stripe-cell:last-child { border-right: none; }
         .db-stripe-label {
@@ -429,21 +455,30 @@ export function QuotationDesignB({
           font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.16em;
-          color: var(--accent-lt);
-          opacity: 0.8;
+          color: var(--accent);
           margin-bottom: 1mm;
         }
         .db-stripe-value {
           font-size: 14pt;
           font-weight: 800;
-          color: white;
+          color: var(--brand);
           line-height: 1.1;
         }
         .db-stripe-unit {
           font-size: 6.5pt;
-          color: rgba(232,184,75,0.65);
+          color: var(--ink-faint);
           margin-top: 0.5mm;
         }
+        /* Grand Total cell: the one figure on this strip that should still
+           dominate, so it keeps a filled background while its two siblings
+           go quiet paper-and-ink. */
+        .db-stripe-cell--total {
+          background: var(--brand);
+          border-right: none;
+        }
+        .db-stripe-cell--total .db-stripe-label { color: var(--accent-lt); opacity: 0.85; }
+        .db-stripe-cell--total .db-stripe-value { color: var(--accent-lt); }
+        .db-stripe-cell--total .db-stripe-unit { color: rgba(232,184,75,0.7); }
 
         /* ── Product Table ── */
         .db-table {
@@ -728,6 +763,10 @@ export function QuotationDesignB({
         .db-closing {
           text-align: center;
           padding: 3mm 10mm;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4mm;
         }
         .db-closing-text {
           font-family: Georgia, "Times New Roman", serif;
@@ -736,6 +775,16 @@ export function QuotationDesignB({
           color: var(--brand);
           letter-spacing: 0.02em;
           line-height: 1.4;
+        }
+        /* Short gold rule on each side of the closing line — the same
+           "— TEXT —" flourish already used on the logo's own tagline, kept
+           deliberately small so it reads as a quiet flourish rather than a
+           second banner. */
+        .db-closing-rule {
+          width: 14mm;
+          height: 1px;
+          background: var(--accent);
+          flex-shrink: 0;
         }
       `}</style>
 
@@ -833,7 +882,7 @@ export function QuotationDesignB({
                 <div className="db-stripe-value">{totalSqFt.toFixed(1)}</div>
                 <div className="db-stripe-unit">sq. ft.</div>
               </div>
-              <div className="db-stripe-cell">
+              <div className="db-stripe-cell db-stripe-cell--total">
                 <div className="db-stripe-label">Grand Total</div>
                 <div className="db-stripe-value">{formatINR(quotation.totals.grandTotal)}</div>
                 <div className="db-stripe-unit">incl. all charges</div>
@@ -1156,9 +1205,11 @@ export function QuotationDesignB({
 
               {/* ── Thank You Closing ── */}
               <div className="db-closing db-avoid-break">
+                <span className="db-closing-rule" aria-hidden="true" />
                 <div className="db-closing-text">
                   Thank you for choosing Royal Doors &amp; Windows.
                 </div>
+                <span className="db-closing-rule" aria-hidden="true" />
               </div>
             </div>
             {/* ^ closes the single avoid-break wrapper opened above at
