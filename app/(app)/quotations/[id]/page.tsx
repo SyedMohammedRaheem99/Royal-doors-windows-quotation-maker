@@ -117,7 +117,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col items-start gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold text-neutral-900">{withRevisionSuffix(quotation.quoteNo, quotation.revision)}</h1>
@@ -127,16 +127,16 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             {quotation.customer.name} — {quotation.customer.project || quotation.customer.siteAddress}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
-            <Link href={`/quotations/${id}/print`} target="_blank" className="rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
+        <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:items-end">
+          <div className="grid grid-cols-3 gap-2 md:flex md:items-center">
+            <Link href={`/quotations/${id}/print`} target="_blank" className="rounded border border-neutral-300 px-3 py-1.5 text-center text-xs font-medium text-neutral-700 hover:bg-neutral-50">
               Print
             </Link>
-            <Link href={`/quotations/${id}/edit`} className="rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
+            <Link href={`/quotations/${id}/edit`} className="rounded border border-neutral-300 px-3 py-1.5 text-center text-xs font-medium text-neutral-700 hover:bg-neutral-50">
               Edit
             </Link>
             <form action={duplicateAction}>
-              <button type="submit" className="rounded bg-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#c9a227] hover:bg-[#0c3125]">
+              <button type="submit" className="w-full rounded bg-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#c9a227] hover:bg-[#0c3125]">
                 Duplicate
               </button>
             </form>
@@ -167,7 +167,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white md:block">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
             <tr>
@@ -198,7 +198,33 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
         </table>
       </div>
 
-      <div className="mt-4 ml-auto w-64 space-y-1 text-sm">
+      <div className="space-y-2 md:hidden">
+        {quotation.items.map((item, i) => (
+          <div key={item.id} className="rounded-lg border border-neutral-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium text-neutral-900">
+                <span className="text-neutral-400">{i + 1}.</span> {item.description}
+              </p>
+              <p className="shrink-0 text-sm font-semibold text-neutral-900">₹{item.amount.toLocaleString("en-IN")}</p>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-neutral-500">
+              <div>
+                <span className="block text-neutral-400">Size (ft)</span>
+                {item.billed.w} x {item.billed.h}
+              </div>
+              <div>
+                <span className="block text-neutral-400">Qty × Sqft</span>
+                {item.qty} × {item.totalAreaSqft}
+              </div>
+              <div>
+                <span className="block text-neutral-400">Rate</span>₹{item.rate}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 w-full space-y-1 text-sm md:ml-auto md:w-64">
         <div className="flex justify-between text-neutral-600">
           <span>Subtotal</span>
           <span>₹{quotation.totals.subtotal.toLocaleString("en-IN")}</span>

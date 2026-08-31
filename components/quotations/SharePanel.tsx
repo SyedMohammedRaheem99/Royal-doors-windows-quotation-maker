@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useToast } from "@/components/ui/Toast";
 // Imported from lib/shareLinks, NOT lib/sharing — the latter imports
 // MongoDB, which a "use client" component must never pull in.
@@ -38,8 +38,16 @@ export function SharePanel({
 
   // Built in the browser so the link always matches the host the user is
   // actually on — localhost during a demo, the real domain in production —
-  // without needing an env var that could drift.
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  // without needing an env var that could drift. Read via useEffect (not a
+  // typeof-window branch in the render body) so the first client render
+  // matches the server-rendered HTML exactly; the real origin fills in a
+  // moment after mount instead of causing a hydration mismatch.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    // One-time read of a browser-only global, not a subscription.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+  }, []);
   const link = share ? `${origin}/share/${share.token}` : "";
 
   function handleCreate() {
@@ -99,7 +107,7 @@ export function SharePanel({
 
       <div className="px-4 py-3">
         {!share ? (
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <p className="text-sm text-neutral-500">
               Create a private link the customer can open on their phone — no login needed.
             </p>
@@ -107,35 +115,37 @@ export function SharePanel({
               type="button"
               onClick={handleCreate}
               disabled={pending}
-              className="shrink-0 rounded bg-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#c9a227] disabled:opacity-50 hover:bg-[#0c3125]"
+              className="w-full shrink-0 rounded bg-[#0f3d2e] px-3 py-1.5 text-xs font-medium text-[#c9a227] disabled:opacity-50 hover:bg-[#0c3125] sm:w-auto"
             >
               {pending ? "Creating..." : "Create share link"}
             </button>
           </div>
         ) : (
           <>
-            <div className="mb-3 flex gap-2">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row">
               <input
                 readOnly
                 value={link}
                 onFocus={(e) => e.currentTarget.select()}
-                className="flex-1 rounded border border-neutral-300 bg-neutral-50 px-2 py-1.5 font-mono text-xs text-neutral-600"
+                className="min-w-0 flex-1 rounded border border-neutral-300 bg-neutral-50 px-2 py-1.5 font-mono text-xs text-neutral-600"
               />
-              <button
-                type="button"
-                onClick={copy}
-                className="shrink-0 rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                {copied ? "Copied ✓" : "Copy"}
-              </button>
-              <a
-                href={waHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 rounded bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1da851]"
-              >
-                Send on WhatsApp
-              </a>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={copy}
+                  className="flex-1 shrink-0 rounded border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:flex-initial"
+                >
+                  {copied ? "Copied ✓" : "Copy"}
+                </button>
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 shrink-0 rounded bg-[#25D366] px-3 py-1.5 text-center text-xs font-semibold text-white hover:bg-[#1da851] sm:flex-initial"
+                >
+                  Send on WhatsApp
+                </a>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-neutral-500">

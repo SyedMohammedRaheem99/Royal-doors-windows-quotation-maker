@@ -138,7 +138,7 @@ export function PaymentsPanel({
         {/* Add form */}
         {showForm && (
           <div className="mb-3 rounded border border-neutral-200 bg-neutral-50 p-3">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-neutral-500">Amount (₹)</label>
                 <input
@@ -172,7 +172,7 @@ export function PaymentsPanel({
                   className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm focus:border-[#0f3d2e] focus:outline-none focus:ring-1 focus:ring-[#0f3d2e]"
                 />
               </div>
-              <div className="col-span-3">
+              <div className="sm:col-span-3">
                 <label className="mb-1 block text-xs font-medium text-neutral-500">Note (optional)</label>
                 <input
                   type="text"
