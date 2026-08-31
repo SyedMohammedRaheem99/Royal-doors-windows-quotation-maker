@@ -38,14 +38,14 @@ function PageHeader({
     <>
       <div className="db-header-bar">
         <div className="db-logo-group">
-          <div className="db-logo-box">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-mark.png" alt="" />
-          </div>
-          <div>
-            <div className="db-brand-name">ROYAL</div>
-            <div className="db-brand-sub">Doors &amp; Windows</div>
-          </div>
+          {/* Full lockup asset (icon + ROYAL + DOORS & WINDOWS + tagline) —
+              replaces the separate circular badge + typeset text. Its own
+              background is the same deep emerald as .db-header-bar, so it
+              sits flush with no visible edge. eslint-disable-next-line
+              @next/next/no-img-element -- print document renders outside
+              next/image's optimization pipeline. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/navlogo_final.png" alt="Royal Doors & Windows" className="db-navlogo" />
         </div>
         <div className="db-header-right">
           <div className="db-doc-type">QUOTATION</div>
@@ -252,48 +252,59 @@ export function QuotationDesignB({
 
         /* ── Header Bar (page 1 only — the full letterhead band) ── */
         .db-header-bar {
-          /* Deep emerald rather than a flat mid-green — a subtle diagonal
-             gradient toward --brand-mid gives the band some depth instead of
-             reading as a single flat colour swatch. */
-          background: linear-gradient(135deg, var(--brand) 0%, #072F1C 100%);
+          /* Flat colour, matched exactly (not approximately) to the logo
+             lockup's own baked-in background — #023F28, sampled directly
+             from navlogo_final.png. A gradient here was tried first, but a
+             flat-background logo image can only ever match ONE point along a
+             gradient's transition; confirmed visually at high resolution
+             that even a close numeric colour match (~7 units off) still read
+             as a visible seam once the gradient lightened away from it. Flat
+             + exact match removes the seam entirely rather than minimising
+             it. See the "decorative accent" rule just below this block,
+             which restores some visual depth without reintroducing a
+             gradient. */
+          background: #023F28;
           padding: 7mm 15mm;
           display: flex;
           justify-content: space-between;
           align-items: center;
           border-bottom: 3pt solid var(--accent);
           flex-shrink: 0;
+          position: relative;
+          overflow: hidden;
         }
-        .db-logo-group { display: flex; align-items: center; gap: 4mm; }
-        .db-logo-box {
-          width: 18mm; height: 18mm;
-          background: white;
-          border-radius: 50%;
-          border: 1.5pt solid var(--accent-lt);
-          padding: 2mm;
-          display: flex; align-items: center; justify-content: center;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        /* Subtle depth without a gradient (which is what caused the seam):
+           a soft radial highlight derived from the header's OWN flat colour
+           at low opacity, so it can never mismatch anything the way an
+           external asset or an independent gradient could. Faint enough to
+           read as ambient light, not a visible shape. */
+        .db-header-bar::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse 60% 100% at 15% 0%, rgba(201,150,42,0.10) 0%, transparent 60%);
+          pointer-events: none;
         }
-        /* No border-radius on the img itself — the logo art is a square
-           mark, and clipping it into a circle would cut into the "R"
-           artwork. The circle is the white badge around it (.db-logo-box);
-           the image sits inside at full size, uncropped. */
-        .db-logo-box img { width: 100%; height: 100%; object-fit: contain; }
-        .db-brand-name {
-          font-size: 21pt;
-          font-weight: 800;
-          color: var(--accent-lt);
-          letter-spacing: 0.14em;
-          line-height: 1;
-          font-family: Georgia, "Times New Roman", serif;
-        }
-        .db-brand-sub {
-          font-size: 7pt;
-          color: white;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.18em;
-          margin-top: 1.5mm;
-        }
+        .db-logo-group { display: flex; align-items: center; }
+        /* The client's finished lockup asset (icon + ROYAL + DOORS & WINDOWS
+           + tagline) replaces the separate circular badge + typeset text
+           combination this used to be.
+
+           An earlier version of this asset (navlogo.png, #001C13 flat
+           background) visibly clashed with .db-header-bar's gradient
+           (#0B4D2E -> #072F1C) — confirmed with a pixel sample, it showed up
+           as a dark rectangular seam rather than blending in. This file
+           (navlogo_final.png, #023F28) was re-exported with a background
+           colour picked from partway along that same gradient — sampled at
+           ~7 units of colour distance from the closest point on the
+           gradient, close enough that no visible edge remains. No white box
+           or border needed around it; it sits directly on the header.
+
+           Height-constrained with auto width so the 1942x809 (~2.4:1) source
+           keeps its aspect ratio; ~19mm is what the header's own vertical
+           padding (7mm top+bottom) leaves for content, matching the height
+           the previous icon+text lockup occupied. */
+        .db-navlogo { height: 19mm; width: auto; display: block; }
         .db-header-right { text-align: right; }
         .db-doc-type {
           font-size: 17pt;
