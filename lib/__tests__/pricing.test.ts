@@ -11,6 +11,9 @@ import {
   toughenedGlassSurcharge,
   customAddonFlatTotal,
   customAddonPerSqftTotal,
+  COLOR_SURCHARGES,
+  colorPerSqftSurcharge,
+  colorFlatSurcharge,
 } from "../pricing";
 import { feetToArchLabel, mmToFeet, snapToHalfFoot, suggestBilledFeet } from "../dimensions";
 import { amountInWords, rupeesInWords } from "../words";
@@ -523,5 +526,107 @@ describe("custom add-ons — per_sqft basis scales with area, flat basis does no
     expect(computed.totalAreaSqft).toBe(299);
     expect(printedRate * computed.totalAreaSqft + 1500).toBe(computed.amount);
     expect(computed.amount).toBe(605 * 299 + 1500);
+  });
+});
+
+/**
+ * Colour-based pricing — Black/Gray/Brown add a flat ₹/sqft, wood-tone
+ * colours (Golden Oak/Walnut/Mahogany) double the item's own rate, and
+ * ventilators have their own separate flat-per-unit rule keyed on ANY
+ * non-white colour plus whether "with fan point" is checked.
+ */
+describe("colour pricing — dark colours and wood-tone colours (per_sqft rate addition)", () => {
+  it("adds the flat dark-colour surcharge for Black, Gray, and Brown", () => {
+    expect(colorPerSqftSurcharge("Black", 350)).toBe(COLOR_SURCHARGES.darkColor);
+    expect(colorPerSqftSurcharge("Gray", 350)).toBe(COLOR_SURCHARGES.darkColor);
+    expect(colorPerSqftSurcharge("Brown", 500)).toBe(COLOR_SURCHARGES.darkColor);
+  });
+
+  it("doubles the item's own rate for wood-tone colours (Golden Oak, Walnut, Mahogany)", () => {
+    expect(colorPerSqftSurcharge("Golden Oak", 350)).toBe(350);
+    expect(colorPerSqftSurcharge("Walnut", 500)).toBe(500);
+    expect(colorPerSqftSurcharge("Mahogany", 320)).toBe(320);
+  });
+
+  it("adds nothing for White or an unpriced colour", () => {
+    expect(colorPerSqftSurcharge("White", 350)).toBe(0);
+    expect(colorPerSqftSurcharge("", 350)).toBe(0);
+    expect(colorPerSqftSurcharge("Half white", 350)).toBe(0);
+    expect(colorPerSqftSurcharge("Teak", 350)).toBe(0);
+  });
+
+  it("folds a dark-colour surcharge into effectiveRate alongside other surcharges", () => {
+    const rate = effectiveRate({
+      rate: 300,
+      pricingMode: "per_sqft",
+      surcharges: ["ssMesh"],
+      colour: "Black",
+    });
+    expect(rate).toBe(300 + SURCHARGES.ssMesh + COLOR_SURCHARGES.darkColor);
+  });
+
+  it("folds a wood-tone surcharge into effectiveRate, doubling the base rate before other surcharges add on", () => {
+    const rate = effectiveRate({
+      rate: 350,
+      pricingMode: "per_sqft",
+      surcharges: [],
+      colour: "Walnut",
+    });
+    expect(rate).toBe(350 + 350); // 700 — the colour costs as much again as the base rate
+  });
+
+  it("does not apply the per_sqft colour rule to a per_unit item's rate", () => {
+    const rate = effectiveRate({
+      rate: 1800,
+      pricingMode: "per_unit",
+      surcharges: [],
+      colour: "Black",
+    });
+    expect(rate).toBe(1800); // per_unit items ignore every per_sqft surcharge, colour included
+  });
+});
+
+describe("colour pricing — ventilator flat surcharge (colorFlatSurcharge)", () => {
+  it("adds ₹1000 for a non-white colour on a ventilator WITH fan point", () => {
+    expect(colorFlatSurcharge({ colour: "Black", diagramType: "ventilator", fanPoint: true })).toBe(
+      COLOR_SURCHARGES.ventilatorFanPointColor
+    );
+  });
+
+  it("adds ₹500 for a non-white colour on a ventilator WITHOUT fan point", () => {
+    expect(colorFlatSurcharge({ colour: "Black", diagramType: "ventilator", fanPoint: false })).toBe(
+      COLOR_SURCHARGES.ventilatorNoFanPointColor
+    );
+  });
+
+  it("applies to ANY non-white colour on a ventilator, not just Black/Gray/Brown", () => {
+    expect(colorFlatSurcharge({ colour: "Golden Oak", diagramType: "ventilator", fanPoint: true })).toBe(
+      COLOR_SURCHARGES.ventilatorFanPointColor
+    );
+    expect(colorFlatSurcharge({ colour: "Teak", diagramType: "ventilator", fanPoint: false })).toBe(
+      COLOR_SURCHARGES.ventilatorNoFanPointColor
+    );
+  });
+
+  it("adds nothing for White (or unset) on a ventilator, regardless of fan point", () => {
+    expect(colorFlatSurcharge({ colour: "White", diagramType: "ventilator", fanPoint: true })).toBe(0);
+    expect(colorFlatSurcharge({ colour: "", diagramType: "ventilator", fanPoint: false })).toBe(0);
+  });
+
+  it("adds nothing on a non-ventilator item, even with a dark colour and fanPoint true", () => {
+    expect(colorFlatSurcharge({ colour: "Black", diagramType: "sliding_2_5_track", fanPoint: true })).toBe(0);
+  });
+
+  it("is a flat per-unit amount, unaffected by computeItem's qty/area maths — the ventilator rule never rides on effectiveRate", () => {
+    const computed = computeItem({
+      billedWidthFt: 2,
+      billedHeightFt: 2,
+      qty: 6,
+      pricingMode: "per_unit",
+      rate: 1800,
+      flatAddonTotal: colorFlatSurcharge({ colour: "Black", diagramType: "ventilator", fanPoint: true }),
+    });
+    // 1800 x 6 units = 10800, plus ONE 1000 colour charge for the line (not x6).
+    expect(computed.amount).toBe(1800 * 6 + 1000);
   });
 });

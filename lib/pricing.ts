@@ -138,6 +138,68 @@ export function toughenedGlassSurcharge(thicknessMm: number): number {
 }
 
 /**
+ * Colour-based pricing, client-confirmed:
+ *  - Black / Gray / Brown: +₹100/sqft flat, on top of everything else.
+ *  - Golden Oak / Walnut / Mahogany ("wood-tone"): the colour itself costs as
+ *    much again as the item's own base rate — a ₹350/sqft product becomes
+ *    ₹700/sqft. Deliberately computed as a multiple of the item's OWN rate
+ *    (not a flat constant) so a ₹500 product and a ₹350 product each get a
+ *    wood-tone surcharge proportional to their own price, matching how the
+ *    client described it ("if 320 then default price would be 320").
+ *  - Ventilators are a separate rule entirely, independent of dark/wood-tone:
+ *    ANY non-white colour on a ventilator adds a flat amount per unit (not
+ *    per sqft — ventilators are priced per_unit), ₹1000 if "with fan point"
+ *    is checked, ₹500 if not. This is checked first/takes priority over the
+ *    dark/wood-tone rule above when the item is a ventilator.
+ *
+ * All four numbers are plain constants for now, not yet admin-editable via
+ * Settings/Rate Master — that UI is a deferred follow-up. Keeping them here,
+ * named and commented like SURCHARGES/TOUGHENED_GLASS_* above, so they're
+ * easy to find and change without hunting through the codebase.
+ */
+export const COLOR_SURCHARGES = {
+  darkColor: 100, // Black / Gray / Brown, +₹100/sqft
+  woodToneMultiplier: 1, // Golden Oak / Walnut / Mahogany — "1x" of the item's own rate
+  ventilatorFanPointColor: 1000, // non-white colour on a ventilator, WITH fan point (flat, per unit)
+  ventilatorNoFanPointColor: 500, // non-white colour on a ventilator, WITHOUT fan point (flat, per unit)
+} as const;
+
+const DARK_COLORS = new Set(["Black", "Gray", "Brown"]);
+const WOOD_TONE_COLORS = new Set(["Golden Oak", "Walnut", "Mahogany"]);
+
+/** True for anything that should NOT trigger the ventilator "non-white colour" rule. */
+function isWhiteOrUnset(colour: string): boolean {
+  return colour === "" || /white/i.test(colour);
+}
+
+/**
+ * The ₹/sqft rate addition from a Black/Gray/Brown or wood-tone colour
+ * choice, folded into effectiveRate() below exactly like a per_sqft
+ * surcharge. Returns 0 for a colour with no pricing rule, and 0 on a
+ * per_unit item — see colorFlatSurcharge() for the ventilator (per_unit)
+ * case, which this function deliberately does not handle.
+ */
+export function colorPerSqftSurcharge(colour: string, baseRate: number): number {
+  if (DARK_COLORS.has(colour)) return COLOR_SURCHARGES.darkColor;
+  if (WOOD_TONE_COLORS.has(colour)) return baseRate * COLOR_SURCHARGES.woodToneMultiplier;
+  return 0;
+}
+
+/**
+ * The flat, once-per-line colour surcharge for a ventilator — ANY non-white
+ * colour, not just Black/Gray/Brown/wood-tone, since the client's rule for
+ * ventilators is broader than the general dark-colour rule. Returns 0 for
+ * anything that isn't a ventilator (see diagramType), so it's safe to call
+ * unconditionally alongside colorPerSqftSurcharge() without double-charging
+ * a non-ventilator item.
+ */
+export function colorFlatSurcharge(params: { colour: string; diagramType: string; fanPoint: boolean }): number {
+  if (params.diagramType !== "ventilator") return 0;
+  if (isWhiteOrUnset(params.colour)) return 0;
+  return params.fanPoint ? COLOR_SURCHARGES.ventilatorFanPointColor : COLOR_SURCHARGES.ventilatorNoFanPointColor;
+}
+
+/**
  * The rate an item is actually priced at once its surcharges are folded in —
  * i.e. what `amount / area` (or `amount / qty`) works out to. lib/quotations.ts
  * computes an item's stored `amount` from exactly this rate; any document that
@@ -189,6 +251,10 @@ export function effectiveRate(item: {
   toughenedGlassMm?: number;
   /** Only the per_sqft-basis entries affect the rate; see customAddonPerSqftTotal(). */
   customAddons?: CustomAddonLike[];
+  /** See colorPerSqftSurcharge() — Black/Gray/Brown/wood-tone only; a
+   *  ventilator's colour surcharge is flat, not per-sqft, and is handled
+   *  separately by colorFlatSurcharge() in computeQuotationPricing(). */
+  colour?: string;
 }): number {
   if (item.pricingMode !== "per_sqft") return item.rate;
   const flatSurchargeSum = item.surcharges.reduce(
@@ -197,7 +263,8 @@ export function effectiveRate(item: {
   );
   const toughenedSurcharge = item.toughenedGlassMm ? toughenedGlassSurcharge(item.toughenedGlassMm) : 0;
   const customPerSqft = customAddonPerSqftTotal(item.customAddons, item.pricingMode);
-  return item.rate + flatSurchargeSum + toughenedSurcharge + customPerSqft;
+  const colorSurcharge = item.colour ? colorPerSqftSurcharge(item.colour, item.rate) : 0;
+  return item.rate + flatSurchargeSum + toughenedSurcharge + customPerSqft + colorSurcharge;
 }
 
 export interface PaymentStage {

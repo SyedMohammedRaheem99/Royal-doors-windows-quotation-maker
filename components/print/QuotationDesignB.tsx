@@ -3,7 +3,7 @@ import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel } from "@/lib/dimensions";
 import { formatINR, formatINRCompact } from "@/lib/money";
 import { formatPhone } from "@/lib/phone";
-import { computePaymentStages, effectiveRate, SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
+import { colorFlatSurcharge, computePaymentStages, effectiveRate, SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering-pure";
 import type { Quotation, Settings } from "@/models/schemas";
@@ -992,6 +992,9 @@ export function QuotationDesignB({
               <tbody>
                 {renderRows.map((row) => {
                   const item = row.item;
+                  // colour must be passed for the dark/wood-tone surcharge to fold
+                  // in — see lib/pricing.ts's colorPerSqftSurcharge().
+                  const printedRate = effectiveRate({ ...item, colour: item.specs.colour });
                   return (
                     <tr key={item.id}>
                         <td style={{ textAlign: "center", color: "var(--ink-muted)", fontWeight: 700 }}>
@@ -1044,6 +1047,30 @@ export function QuotationDesignB({
                                     <span className="db-spec-v">{item.specs.colour}</span>
                                   </>
                                 )}
+                                {/* Ventilator colour surcharge is flat-per-unit (see
+                                    lib/pricing.ts's colorFlatSurcharge), so it never
+                                    shows in the Rate column's breakdown below like the
+                                    per_sqft dark/wood-tone surcharge does — disclosed
+                                    here instead, same treatment as a custom add-on. */}
+                                {item.diagram.type === "ventilator" &&
+                                  colorFlatSurcharge({
+                                    colour: item.specs.colour,
+                                    diagramType: item.diagram.type,
+                                    fanPoint: item.diagram.fanPoint,
+                                  }) > 0 && (
+                                    <>
+                                      <span className="db-spec-k">Add-on</span>
+                                      <span className="db-spec-v">
+                                        {item.specs.colour} colour (+₹
+                                        {colorFlatSurcharge({
+                                          colour: item.specs.colour,
+                                          diagramType: item.diagram.type,
+                                          fanPoint: item.diagram.fanPoint,
+                                        })}{" "}
+                                        flat)
+                                      </span>
+                                    </>
+                                  )}
                                 {item.surcharges.map((key) => (
                                   <React.Fragment key={key}>
                                     <span className="db-spec-k">Add-on</span>
@@ -1095,7 +1122,7 @@ export function QuotationDesignB({
                         </td>
                         <td style={{ textAlign: "center" }}>{item.qty}</td>
                         <td style={{ textAlign: "right" }}>
-                          {formatINRCompact(effectiveRate(item))}
+                          {formatINRCompact(printedRate)}
                           {/* The rate shown is the BLENDED rate (base + every
                               surcharge folded in) — effectiveRate() is what
                               lib/quotations.ts actually billed with, so this must
@@ -1104,9 +1131,9 @@ export function QuotationDesignB({
                               with no way to see it is 425 base + 50 + 50, which is
                               exactly what read as a pricing error even though the
                               total was correct to the rupee. */}
-                          {effectiveRate(item) !== item.rate && item.pricingMode === "per_sqft" && (
+                          {printedRate !== item.rate && item.pricingMode === "per_sqft" && (
                             <div className="db-rate-sub">
-                              ({item.rate}+{effectiveRate(item) - item.rate})
+                              ({item.rate}+{printedRate - item.rate})
                             </div>
                           )}
                         </td>

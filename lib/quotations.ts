@@ -4,7 +4,7 @@ import { quotations as quotationsCollection, type StoredQuotation } from "./coll
 import { canAccessOwned, ownershipFilter, type Actor } from "./authz";
 import { findOrCreateCustomer } from "./customers";
 import { nextQuoteNo } from "./numbering";
-import { computeItem, computeTotals, customAddonFlatTotal, effectiveRate } from "./pricing";
+import { colorFlatSurcharge, computeItem, computeTotals, customAddonFlatTotal, effectiveRate } from "./pricing";
 import {
   STATUS_TRANSITIONS,
   type Payment,
@@ -30,8 +30,17 @@ function computeQuotationPricing(input: QuotationInput) {
       // Per-sqft custom add-ons ride inside effectiveRate (so they scale with
       // area); flat ones are added once, after the rate maths, so they survive
       // on per_unit items too.
-      rate: effectiveRate(item),
-      flatAddonTotal: customAddonFlatTotal(item.customAddons),
+      rate: effectiveRate({ ...item, colour: item.specs.colour }),
+      // A ventilator's colour surcharge is flat-per-unit, not per-sqft (see
+      // colorFlatSurcharge()), so it rides alongside the custom-addon flat
+      // total rather than inside effectiveRate() above.
+      flatAddonTotal:
+        customAddonFlatTotal(item.customAddons) +
+        colorFlatSurcharge({
+          colour: item.specs.colour,
+          diagramType: item.diagram.type,
+          fanPoint: item.diagram.fanPoint,
+        }),
     });
     return { ...item, ...computed };
   });

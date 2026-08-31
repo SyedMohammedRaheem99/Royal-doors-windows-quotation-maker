@@ -2,7 +2,7 @@
 
 import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel, suggestBilledFeet } from "@/lib/dimensions";
-import { SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
+import { colorFlatSurcharge, colorPerSqftSurcharge, SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
 import type { CustomAddon, RateCardEntry } from "@/models/schemas";
 import { computeBuilderItem } from "./computeBuilderItem";
 import { ProductPicker } from "./ProductPicker";
@@ -107,6 +107,15 @@ export function ItemRow({
   }
 
   const showFanPoint = item.diagramType === "ventilator";
+
+  // Live hint next to the Colour field — computed via the same functions
+  // that drive the actual amount (lib/pricing.ts), so it can never show a
+  // number the real charge doesn't match.
+  const colorHint = showFanPoint
+    ? colorFlatSurcharge({ colour: item.specs.colour, diagramType: item.diagramType, fanPoint: item.fanPoint })
+    : item.pricingMode === "per_sqft"
+      ? colorPerSqftSurcharge(item.specs.colour, item.rate)
+      : 0;
   const showHanding = ["casement", "top_hung", "combination", "french_door", "flush_door", "bathroom_door"].includes(
     item.diagramType
   );
@@ -323,6 +332,12 @@ export function ItemRow({
                   </option>
                 ))}
               </select>
+              {colorHint > 0 && (
+                <p className="mt-1 text-xs text-amber-700">
+                  +₹{colorHint.toLocaleString("en-IN")}
+                  {showFanPoint ? "" : "/sqft"} for this colour
+                </p>
+              )}
             </div>
           )}
           {selectedProduct && selectedProduct.specOptions.glass.length > 0 && (

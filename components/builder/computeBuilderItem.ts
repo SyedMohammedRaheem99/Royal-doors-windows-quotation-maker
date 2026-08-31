@@ -1,4 +1,5 @@
 import {
+  colorFlatSurcharge,
   computeItem,
   customAddonFlatTotal,
   effectiveRate as computeEffectiveRate,
@@ -19,7 +20,7 @@ import type { BuilderItem } from "./types";
  * the print document), can't drift again.
  */
 export function computeBuilderItem(item: BuilderItem): QuotationItemComputed & { effectiveRate: number } {
-  const rate = computeEffectiveRate(item);
+  const rate = computeEffectiveRate({ ...item, colour: item.specs.colour });
 
   const computed = computeItem({
     billedWidthFt: item.billed.w,
@@ -29,7 +30,11 @@ export function computeBuilderItem(item: BuilderItem): QuotationItemComputed & {
     rate,
     // Must mirror lib/quotations.ts's computeQuotationPricing exactly, or the
     // builder's live preview would quote a different number than the one saved.
-    flatAddonTotal: customAddonFlatTotal(item.customAddons),
+    // A ventilator's colour surcharge is flat-per-unit, not per-sqft, so it
+    // rides alongside the custom-addon flat total rather than inside `rate`.
+    flatAddonTotal:
+      customAddonFlatTotal(item.customAddons) +
+      colorFlatSurcharge({ colour: item.specs.colour, diagramType: item.diagramType, fanPoint: item.fanPoint }),
   });
 
   return { ...computed, effectiveRate: rate };

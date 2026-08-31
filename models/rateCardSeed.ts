@@ -25,7 +25,12 @@ const GLASS_OPTIONS = [
   "Design glass",
 ];
 const MESH_OPTIONS = ["Aluminium mesh (standard)", "SS mesh (+₹20/sqft)", "No mesh"];
-const COLOUR_OPTIONS = ["White", "Half white", "Milk white", "Teak", "Brown", "Golden Oak"];
+// Priced colours first (see lib/pricing.ts's COLOR_SURCHARGES,
+// colorPerSqftSurcharge, colorFlatSurcharge — these exact string values are
+// what the pricing rules match on): Black/Gray/Brown add a flat surcharge,
+// Golden Oak/Walnut/Mahogany ("wood-tone") double the item's own rate.
+// Unpriced colours kept after, in their original order.
+const COLOUR_OPTIONS = ["Black", "Gray", "Brown", "Golden Oak", "Walnut", "Mahogany", "White", "Half white", "Milk white", "Teak"];
 
 export const RATE_CARD_SEED: Omit<RateCardEntry, "_id">[] = [
   // ---- sliding windows ----
