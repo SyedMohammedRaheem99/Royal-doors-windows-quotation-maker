@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { PasswordField } from "@/components/auth/PasswordField";
 import type { CreateUserInput, UserRole } from "@/models/schemas";
 import type { StoredUser } from "@/lib/users";
 
@@ -106,12 +107,12 @@ export function UserManagementForm({
             </div>
             <div>
               <label className={labelClass()}>Password</label>
-              <input
-                type="password"
-                className={inputClass()}
+              <PasswordField
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 placeholder="At least 6 characters"
+                className={`${inputClass()} pr-8`}
+                toggleClassName="absolute inset-y-0 right-0 flex items-center px-2 text-neutral-400 hover:text-neutral-600"
               />
             </div>
             <div>
@@ -251,12 +252,12 @@ function UserRowDesktop({
           <span className="text-xs text-neutral-400">—</span>
         ) : resetting ? (
           <div className="flex items-center justify-end gap-2">
-            <input
-              type="password"
-              className="w-32 rounded border border-neutral-300 px-2 py-1 text-xs"
-              placeholder="New password"
+            <PasswordField
               value={resetPassword}
-              onChange={(e) => onResetPasswordChange(e.target.value)}
+              onChange={onResetPasswordChange}
+              placeholder="New password"
+              className="w-32 rounded border border-neutral-300 px-2 py-1 pr-6 text-xs"
+              toggleClassName="absolute inset-y-0 right-0 flex items-center px-1 text-neutral-400 hover:text-neutral-600"
             />
             <button
               type="button"
@@ -320,12 +321,12 @@ function UserCardMobile({
         <div className="mt-3">
           {resetting ? (
             <div className="flex flex-col gap-2">
-              <input
-                type="password"
-                className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
-                placeholder="New password"
+              <PasswordField
                 value={resetPassword}
-                onChange={(e) => onResetPasswordChange(e.target.value)}
+                onChange={onResetPasswordChange}
+                placeholder="New password"
+                className="w-full rounded border border-neutral-300 px-2 py-1.5 pr-8 text-sm"
+                toggleClassName="absolute inset-y-0 right-0 flex items-center px-2 text-neutral-400 hover:text-neutral-600"
               />
               <div className="flex gap-2">
                 <button

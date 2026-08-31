@@ -2,6 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
+import { PasswordField } from "@/components/auth/PasswordField";
 
 /**
  * Deliberately no "forgot password" link on this page. super_admin
@@ -74,13 +75,9 @@ export default async function LoginPage({
             <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-sm focus:border-[#0f3d2e] focus:outline-none focus:ring-1 focus:ring-[#0f3d2e]"
-            />
+            <div className="mt-1">
+              <PasswordField id="password" name="password" required />
+            </div>
           </div>
           <button
             type="submit"
