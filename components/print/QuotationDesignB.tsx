@@ -304,10 +304,13 @@ export function QuotationDesignB({
            keeps its aspect ratio; ~19mm is what the header's own vertical
            padding (7mm top+bottom) leaves for content, matching the height
            the previous icon+text lockup occupied. */
-        /* 19mm -> 22.8mm (+20%, requested after seeing it in place). Header
-           uses align-items:center with its own vertical padding, so it grows
-           to fit this rather than clipping it. */
-        .db-navlogo { height: 22.8mm; width: auto; display: block; }
+        /* 19mm -> 22.8mm (+20%) -> 31.9mm (+40% more, requested after seeing
+           it in place twice). Header uses align-items:center with its own
+           vertical padding, so it grows to fit this rather than clipping
+           it — verify the header height and page count regression after any
+           further increase here, since this is now a meaningfully bigger
+           element than the header's original design budget. */
+        .db-navlogo { height: 31.9mm; width: auto; display: block; }
         .db-header-right { text-align: right; }
         .db-doc-type {
           font-size: 17pt;
@@ -713,19 +716,24 @@ export function QuotationDesignB({
           margin-top: 0.5mm;
         }
 
-        /* Thank You Closing */
+        /* Thank You Closing — no box. The solid green banner was one more
+           green block on a page that already has the header, stripe, section
+           bars and the gold footer all in green/gold; removed the
+           background/border/padding entirely so it reads as a quiet closing
+           line on the page's own cream background instead of another
+           banner. Text colour switched from gold (which needs a dark
+           background to read) to the brand green, which is legible directly
+           on --warm cream and matches the ink colour used everywhere else on
+           the page. */
         .db-closing {
-          background: linear-gradient(120deg, var(--brand) 0%, var(--brand-mid) 100%);
-          border-radius: 6px;
           text-align: center;
-          padding: 5mm 10mm;
-          border: 1px solid rgba(201,150,42,0.45);
+          padding: 3mm 10mm;
         }
         .db-closing-text {
           font-family: Georgia, "Times New Roman", serif;
           font-style: italic;
           font-size: 13pt;
-          color: var(--accent-lt);
+          color: var(--brand);
           letter-spacing: 0.02em;
           line-height: 1.4;
         }
