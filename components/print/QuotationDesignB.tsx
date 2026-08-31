@@ -615,15 +615,21 @@ export function QuotationDesignB({
         .db-spec-v { color: var(--ink-muted); }
         /* Area under Size, and the rate breakdown under Rate — both let a
            reader check rate x area = amount themselves instead of trusting a
-           single blended number with no visible arithmetic. */
-        .db-size-sub {
-          margin-top: 0.5mm;
-          font-size: 6.5pt;
-          color: var(--ink-faint);
+           single blended number with no visible arithmetic. Set apart from
+           the primary figure with real spacing, a hairline divider and a
+           smaller/lighter/italic treatment, so each reads unmistakably as a
+           calculation note rather than a second data point competing with
+           the headline number above it. */
+        .db-size-main, .db-rate-main {
+          font-weight: 700;
+          color: var(--ink);
         }
-        .db-rate-sub {
-          margin-top: 0.5mm;
+        .db-size-sub, .db-rate-sub {
+          margin-top: 1.5mm;
+          padding-top: 1mm;
+          border-top: 1px solid var(--line);
           font-size: 6.5pt;
+          font-style: italic;
           color: var(--ink-faint);
           font-weight: 400;
         }
@@ -1112,7 +1118,9 @@ export function QuotationDesignB({
                           </div>
                         </td>
                         <td style={{ textAlign: "center" }}>
-                          {feetToArchLabel(item.billed.w)} × {feetToArchLabel(item.billed.h)}
+                          <div className="db-size-main">
+                            {feetToArchLabel(item.billed.w)} × {feetToArchLabel(item.billed.h)}
+                          </div>
                           {item.pricingMode === "per_sqft" && (
                             <div className="db-size-sub">{item.totalAreaSqft} sq.ft</div>
                           )}
@@ -1120,7 +1128,7 @@ export function QuotationDesignB({
                         </td>
                         <td style={{ textAlign: "center" }}>{item.qty}</td>
                         <td style={{ textAlign: "right" }}>
-                          {formatINRCompact(printedRate)}
+                          <div className="db-rate-main">{formatINRCompact(printedRate)}</div>
                           {/* The rate shown is the BLENDED rate (base + every
                               surcharge folded in) — effectiveRate() is what
                               lib/quotations.ts actually billed with, so this must
@@ -1131,7 +1139,7 @@ export function QuotationDesignB({
                               total was correct to the rupee. */}
                           {printedRate !== item.rate && item.pricingMode === "per_sqft" && (
                             <div className="db-rate-sub">
-                              ({item.rate}+{printedRate - item.rate})
+                              {item.rate}+{printedRate - item.rate}
                             </div>
                           )}
                         </td>
