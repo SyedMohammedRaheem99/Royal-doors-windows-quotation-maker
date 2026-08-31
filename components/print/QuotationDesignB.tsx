@@ -3,7 +3,7 @@ import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel } from "@/lib/dimensions";
 import { formatINR, formatINRCompact } from "@/lib/money";
 import { formatPhone } from "@/lib/phone";
-import { computePaymentStages, effectiveRate, SURCHARGES } from "@/lib/pricing";
+import { computePaymentStages, effectiveRate, SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering-pure";
 import type { Quotation, Settings } from "@/models/schemas";
@@ -180,6 +180,14 @@ export function QuotationDesignB({
            Zero blue. Brand-true. Industry-standard.
         ═══════════════════════════════════════════════════════ */
 
+        /* Without this, mobile browsers in particular tend to strip
+           background colours/gradients on print — the emerald header, gold
+           accents and footer band would render blank. InvoiceDocument.tsx
+           already has this; Design B was missing it. */
+        .design-b-doc, .design-b-doc * {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
         .design-b-doc {
           --brand:        #0B4D2E;
           --brand-mid:    #1A6B3E;
@@ -605,6 +613,20 @@ export function QuotationDesignB({
           font-size: 6.5pt;
         }
         .db-spec-v { color: var(--ink-muted); }
+        /* Area under Size, and the rate breakdown under Rate — both let a
+           reader check rate x area = amount themselves instead of trusting a
+           single blended number with no visible arithmetic. */
+        .db-size-sub {
+          margin-top: 0.5mm;
+          font-size: 6.5pt;
+          color: var(--ink-faint);
+        }
+        .db-rate-sub {
+          margin-top: 0.5mm;
+          font-size: 6.5pt;
+          color: var(--ink-faint);
+          font-weight: 400;
+        }
 
         /* ── Totals Block (Last Item Page) ── */
         .db-totals-wrap {
@@ -1028,15 +1050,51 @@ export function QuotationDesignB({
                                     <span className="db-spec-v">{SURCHARGE_LABELS[key] ?? key}</span>
                                   </React.Fragment>
                                 ))}
+                                {/* Toughened glass was folded into the rate with zero
+                                    disclosure — the surcharge list above named every
+                                    other extra but not this one, so a blended rate like
+                                    ₹525/sqft looked unexplained even though it was
+                                    correct (₹425 base + ₹50 French window + ₹50
+                                    toughened glass). Named here the same way every
+                                    other add-on already is. */}
+                                {!!item.toughenedGlassMm && (
+                                  <>
+                                    <span className="db-spec-k">Add-on</span>
+                                    <span className="db-spec-v">
+                                      Toughened glass, {item.toughenedGlassMm}mm (+₹
+                                      {toughenedGlassSurcharge(item.toughenedGlassMm)}/sq.ft)
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td style={{ textAlign: "center" }}>
                           {feetToArchLabel(item.billed.w)} × {feetToArchLabel(item.billed.h)}
+                          {item.pricingMode === "per_sqft" && (
+                            <div className="db-size-sub">{item.totalAreaSqft} sq.ft</div>
+                          )}
+                          {item.pricingMode === "per_unit" && <div className="db-size-sub">per pc</div>}
                         </td>
                         <td style={{ textAlign: "center" }}>{item.qty}</td>
-                        <td style={{ textAlign: "right" }}>{formatINRCompact(effectiveRate(item))}</td>
+                        <td style={{ textAlign: "right" }}>
+                          {formatINRCompact(effectiveRate(item))}
+                          {/* The rate shown is the BLENDED rate (base + every
+                              surcharge folded in) — effectiveRate() is what
+                              lib/quotations.ts actually billed with, so this must
+                              stay in lockstep with it rather than showing the raw
+                              item.rate. Without this line a customer sees "₹525"
+                              with no way to see it is 425 base + 50 + 50, which is
+                              exactly what read as a pricing error even though the
+                              total was correct to the rupee. */}
+                          {(item.surcharges.length > 0 || item.toughenedGlassMm) &&
+                            item.pricingMode === "per_sqft" && (
+                              <div className="db-rate-sub">
+                                ({item.rate}+{effectiveRate(item) - item.rate})
+                              </div>
+                            )}
+                        </td>
                         <td style={{ textAlign: "right", fontWeight: 700 }}>{formatINR(item.amount)}</td>
                       </tr>
                   );
