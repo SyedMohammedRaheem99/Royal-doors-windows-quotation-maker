@@ -9,6 +9,7 @@ import type { RateCardEntry } from "./schemas";
 
 const PROFILE_OPTIONS = ["BAYDEE (Half white)", "GT / Galaxy Trader (Milk white)", "Green Tech", "Fenstech", "Eroline"];
 const GLASS_OPTIONS = [
+  "Clear glass",
   "Clear or pinned",
   "Pinned glass",
   "Frosted",
