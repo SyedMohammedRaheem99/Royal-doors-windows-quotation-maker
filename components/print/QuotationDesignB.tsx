@@ -324,12 +324,14 @@ export function QuotationDesignB({
 
         /* ── Body ── */
         .db-body {
-          /* Was 5mm top — trimmed to close a ~7mm shortfall that pushed the
-             totals box alone onto an otherwise-empty page 2 for short
-             quotations. This is pure whitespace above the letterhead's own
-             bottom border, not spacing between content, so nothing here
-             reads as cramped. */
-          padding: 2mm 15mm 0 15mm;
+          /* Restored to 5mm. This was trimmed to 2mm during the pagination
+             fix, which squeezed the gap under the contact bar down to 2mm —
+             visibly cramped ("leaking space" reduced too far). The
+             pagination bug that trim was chasing is now fixed structurally
+             (per-card avoid-break instead of one large forced-break block),
+             so this space is no longer needed for that and can go back to a
+             proper breathing gap. */
+          padding: 5mm 15mm 0 15mm;
           flex: 1;
           display: flex;
           flex-direction: column;
@@ -344,7 +346,9 @@ export function QuotationDesignB({
           color: var(--brand);
           border-left: 3.5pt solid var(--accent);
           padding-left: 3mm;
-          margin-bottom: 2.5mm;
+          /* Restored to 4mm — trimmed to 2.5mm for the same now-obsolete
+             reason as the other spacing changes above. */
+          margin-bottom: 4mm;
           margin-top: 3mm;
         }
 
@@ -490,7 +494,9 @@ export function QuotationDesignB({
         .db-totals-wrap {
           display: flex;
           justify-content: flex-end;
-          margin-top: 2mm;
+          /* Restored to 4mm — trimmed to 2mm for the same now-obsolete
+             reason as .db-body's padding above. */
+          margin-top: 4mm;
         }
         .db-totals-box {
           width: 46%;
