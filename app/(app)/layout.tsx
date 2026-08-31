@@ -15,9 +15,9 @@ async function signOutAction() {
 
 // Invoicing exists (lib/invoices.ts, the invoice schema, the pages under
 // app/(app)/invoices and app/(print)/invoices) but is hidden from the nav —
-// see FUTURE-IDEAS.md's "Tax invoicing" entry for why and how to re-enable.
+// see docs/archive/FUTURE-IDEAS.md's "Tax invoicing" entry for why and how to re-enable.
 // Customer history (app/(app)/customers/*) is hidden the same way — see
-// FUTURE-IDEAS.md's "Customer history" entry. Customer records are still
+// docs/archive/FUTURE-IDEAS.md's "Customer history" entry. Customer records are still
 // created/updated on every quotation save (lib/customers.ts); only the UI
 // that shows that history is hidden.
 const NAV_LINKS = [

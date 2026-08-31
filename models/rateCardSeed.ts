@@ -375,7 +375,7 @@ export const RATE_CARD_SEED: Omit<RateCardEntry, "_id">[] = [
   },
 
   // ---- aluminium range — mined from the client's handwritten rate sheet,
-  // rates confirmed directly with the client (see FUTURE-IDEAS.md's
+  // rates confirmed directly with the client (see docs/archive/FUTURE-IDEAS.md's
   // "Rate card additions" entry for the source and every confirmed number) ----
   {
     productType: "aluminium_sliding_2_track",

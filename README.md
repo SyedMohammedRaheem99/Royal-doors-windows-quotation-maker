@@ -111,7 +111,7 @@ npm run dev        # development
 npm run build && npm run start   # production
 ```
 
-See [DEMO.md](DEMO.md) for a walkthrough script.
+See [docs/archive/DEMO.md](docs/archive/DEMO.md) for a walkthrough script.
 
 ## Tests
 

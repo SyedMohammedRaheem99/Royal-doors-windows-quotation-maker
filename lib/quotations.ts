@@ -74,7 +74,7 @@ export async function listQuotationsFor(
     // A regex can't use the createdBy_createdAt / createdAt_desc indexes
     // directly, but the ownership + status equality filters above narrow the
     // candidate set first, so this scans a bounded working set rather than
-    // the whole collection — acceptable at this scale. See ROADMAP.md Phase 3.
+    // the whole collection — acceptable at this scale. See docs/archive/ROADMAP.md Phase 3.
     const re = new RegExp(opts.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     filter.$or = [{ quoteNo: re }, { "customer.name": re }, { "customer.project": re }];
   }

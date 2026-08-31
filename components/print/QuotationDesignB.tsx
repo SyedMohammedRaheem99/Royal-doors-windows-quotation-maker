@@ -139,7 +139,7 @@ export function QuotationDesignB({
    * client's request — plain product-wise numbering only, for now. The
    * underlying data (lib/grouping.ts, each item's .room field) is untouched;
    * this only affects how the print table is rendered. See
-   * FUTURE-IDEAS.md's "Room / area grouping" entry for how to bring it back.
+   * docs/archive/FUTURE-IDEAS.md's "Room / area grouping" entry for how to bring it back.
    */
   type RenderRow = { type: "item"; item: Quotation["items"][0]; displayIndex: number };
   const renderRows: RenderRow[] = quotation.items.map((item, i) => ({

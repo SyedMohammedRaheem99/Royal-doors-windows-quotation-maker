@@ -141,7 +141,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               </button>
             </form>
           </div>
-          {/* Tax invoicing is hidden for now — see FUTURE-IDEAS.md's "Tax
+          {/* Tax invoicing is hidden for now — see docs/archive/FUTURE-IDEAS.md's "Tax
               invoicing" entry. The underlying feature (lib/invoices.ts, the
               /invoices pages) is untouched; re-enable by restoring this
               block.
