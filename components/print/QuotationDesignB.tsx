@@ -304,7 +304,10 @@ export function QuotationDesignB({
            keeps its aspect ratio; ~19mm is what the header's own vertical
            padding (7mm top+bottom) leaves for content, matching the height
            the previous icon+text lockup occupied. */
-        .db-navlogo { height: 19mm; width: auto; display: block; }
+        /* 19mm -> 22.8mm (+20%, requested after seeing it in place). Header
+           uses align-items:center with its own vertical padding, so it grows
+           to fit this rather than clipping it. */
+        .db-navlogo { height: 22.8mm; width: auto; display: block; }
         .db-header-right { text-align: right; }
         .db-doc-type {
           font-size: 17pt;
