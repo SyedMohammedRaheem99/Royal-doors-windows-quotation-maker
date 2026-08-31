@@ -1,7 +1,6 @@
 import React from "react";
 import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel } from "@/lib/dimensions";
-import { groupItemsByRoom, usesRooms } from "@/lib/grouping";
 import { formatINR, formatINRCompact } from "@/lib/money";
 import { formatPhone } from "@/lib/phone";
 import { computePaymentStages, effectiveRate, SURCHARGES } from "@/lib/pricing";
@@ -112,29 +111,24 @@ export function QuotationDesignB({
     quotation.totals.grandTotal
   );
 
-  const roomGroups = groupItemsByRoom(quotation.items);
-
   // Summary stripe data
   const totalItems = quotation.items.length;
   const totalSqFt = quotation.items.reduce((sum, item) => sum + item.totalAreaSqft, 0);
 
-  type RenderRow =
-    | { type: "room"; room: string; subtotal: number }
-    | { type: "item"; item: Quotation["items"][0]; displayIndex: number };
-
-  const renderRows: RenderRow[] = [];
-  if (usesRooms(quotation.items)) {
-    roomGroups.forEach((group) => {
-      renderRows.push({ type: "room", room: group.room, subtotal: group.subtotal });
-      group.items.forEach((itemInfo) =>
-        renderRows.push({ type: "item", item: itemInfo.item, displayIndex: itemInfo.displayIndex })
-      );
-    });
-  } else {
-    quotation.items.forEach((item, i) =>
-      renderRows.push({ type: "item", item, displayIndex: i + 1 })
-    );
-  }
+  /**
+   * Room/category grouping (Living Room / Bathroom / Entrance headers with
+   * per-room subtotals) was removed from the printed schedule at the
+   * client's request — plain product-wise numbering only, for now. The
+   * underlying data (lib/grouping.ts, each item's .room field) is untouched;
+   * this only affects how the print table is rendered. See
+   * FUTURE-IDEAS.md's "Room / area grouping" entry for how to bring it back.
+   */
+  type RenderRow = { type: "item"; item: Quotation["items"][0]; displayIndex: number };
+  const renderRows: RenderRow[] = quotation.items.map((item, i) => ({
+    type: "item",
+    item,
+    displayIndex: i + 1,
+  }));
 
   /**
    * Pagination is NOT computed here. An earlier version bucketed rows into
@@ -454,17 +448,6 @@ export function QuotationDesignB({
         }
         .db-table td:last-child { border-right: none; }
         .db-table tbody tr:nth-child(even) td { background: #F5F2EC; }
-
-        .db-room-row td {
-          background: rgba(11,77,46,0.06) !important;
-          color: var(--brand);
-          font-weight: 800;
-          font-size: 7.5pt;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          padding: 2.5mm 3mm;
-          border-left: 3pt solid var(--accent);
-        }
 
         .db-desc-flex { display: flex; gap: 3.5mm; }
         .db-diag-box {
@@ -845,22 +828,10 @@ export function QuotationDesignB({
                 </tr>
               </thead>
               <tbody>
-                {renderRows.map((row, rIdx) => {
-                  if (row.type === "room") {
-                    return (
-                      <tr key={`room-${rIdx}`} className="db-room-row">
-                        <td colSpan={6}>
-                          {row.room || "General"}
-                          <span style={{ float: "right", fontWeight: 600, color: "var(--ink-muted)" }}>
-                            Room Subtotal: {formatINR(row.subtotal)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  } else {
-                    const item = row.item;
-                    return (
-                      <tr key={item.id}>
+                {renderRows.map((row) => {
+                  const item = row.item;
+                  return (
+                    <tr key={item.id}>
                         <td style={{ textAlign: "center", color: "var(--ink-muted)", fontWeight: 700 }}>
                           {row.displayIndex}
                         </td>
@@ -928,8 +899,7 @@ export function QuotationDesignB({
                         <td style={{ textAlign: "right" }}>{formatINRCompact(effectiveRate(item))}</td>
                         <td style={{ textAlign: "right", fontWeight: 700 }}>{formatINR(item.amount)}</td>
                       </tr>
-                    );
-                  }
+                  );
                 })}
               </tbody>
             </table>

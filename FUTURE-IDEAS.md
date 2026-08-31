@@ -138,21 +138,26 @@ Nothing else needs to change — the data has been there the whole time.
 ## Room / area grouping in the printed schedule
 
 The product table currently lists every item in plain product-wise order (S.No 1, 2, 3…), no
-"Living Room" / "Bathroom" section headers. This was previously built (`lib/grouping.ts`,
-`groupItemsByRoom`/`usesRooms`, fully unit-tested in `grouping.test.ts`) and then explicitly removed
-from the print document per direct instruction — the customer just wants a straightforward
-product-wise list.
+"Living Room" / "Bathroom" section headers. This has been removed twice now, on the same direct
+instruction each time: once from the original single-design print document, and again from
+`QuotationDesignB.tsx` (the live "Corporate" design) — that file had briefly reintroduced
+room-header rows with per-room subtotals (via `groupItemsByRoom`/`usesRooms` from `lib/grouping.ts`)
+during the A/B/C prototyping pass, and was reverted to plain numbering when the client asked for it
+to come out again. The client's stated intent is to revisit this later, not to drop it permanently.
 
 **Nothing was lost.** Every item still carries its `room` field in the database exactly as before;
 the builder UI still lets a worker tag "Master bedroom", "Balcony", etc. per item. Only the *printed
-table* stopped grouping by it. `lib/grouping.ts` itself was untouched — the display logic in
-`QuotationDocument.tsx` just stopped calling it.
+table* stopped grouping by it. `lib/grouping.ts` (`groupItemsByRoom`/`usesRooms`, fully unit-tested
+in `grouping.test.ts`) was untouched both times — the print components just stopped calling it.
 
-**If this needs to come back:** re-import `groupItemsByRoom`/`usesRooms` from `lib/grouping.ts`,
-swap `quotation.items.map(...)` back to iterating `groups` with a room-header `<tr>` between
-groups. The tests in `grouping.test.ts` still pass today — the underlying grouping logic was never
-broken, just unused by the print layout for now. Could ship as a per-quotation toggle ("group by
-room?") rather than an all-or-nothing choice, if some jobs want it and others don't.
+**If this needs to come back in `QuotationDesignB.tsx`:** re-add the import, build a `RenderRow`
+union with a `"room"` variant again (room name + per-room subtotal, folded in via
+`groupItemsByRoom`), and render a header `<tr>` (full-width `colSpan`, left accent border) before
+each room's items in the `.db-table` body — this is exactly what was removed to get back to plain
+numbering, so the git history for this file has the working version to reference. The tests in
+`grouping.test.ts` still pass today — the underlying grouping logic was never broken, just unused by
+the print layout. Worth shipping as a per-quotation toggle ("group by room?") rather than an
+all-or-nothing choice, since some jobs want it and others don't.
 
 ---
 
