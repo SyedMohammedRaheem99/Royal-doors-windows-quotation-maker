@@ -135,34 +135,26 @@ export function QuotationDesignB({
     );
   }
 
-  // Page 1 is shorter — stripe + meta cards consume ~30mm extra space
-  const MAX_FIRST_PAGE = 3;
-  // Last item page needs space for totals block (~28mm); other middle pages use full capacity
-  // We conservatively reduce ALL pages to 5 so the last one always has room for totals
-  const MAX_N_PAGE = 5;
-
-  const pages: RenderRow[][] = [];
-  let currentPage: RenderRow[] = [];
-  let currentHeight = 0;
-  let isFirstPage = true;
-
-  renderRows.forEach((row) => {
-    const rowHeight = row.type === "room" ? 0.7 : 1;
-    const max = isFirstPage ? MAX_FIRST_PAGE : MAX_N_PAGE;
-
-    if (currentHeight + rowHeight > max && currentPage.length > 0) {
-      pages.push(currentPage);
-      currentPage = [];
-      currentHeight = 0;
-      isFirstPage = false;
-    }
-
-    currentPage.push(row);
-    currentHeight += rowHeight;
-  });
-  if (currentPage.length > 0) pages.push(currentPage);
-
-  const totalPages = pages.length + 1; // +1 for terms page
+  /**
+   * Pagination is NOT computed here. An earlier version bucketed rows into
+   * pages by a guessed row count (3 on page 1, 5 on later pages) and rendered
+   * each bucket into its own fixed-height, overflow:hidden A4 sheet. That
+   * broke the moment a row was taller than the guess — verified with a real
+   * quotation: a long product description + spec list clipped mid-word at the
+   * bottom of the sheet, with the row's amount and the page footer clipped
+   * away entirely. A row-count budget has no relationship to the actual
+   * rendered height of that row's content.
+   *
+   * Instead the whole document is one continuous flow (no per-page wrapper
+   * divs, no fixed heights) and the BROWSER paginates it, exactly like the
+   * previously-shipped single-design document that was verified across
+   * 1/5/14/25/50-item quotations plus long-text stress cases with zero
+   * clipping. `break-inside: avoid` on each row/section is what keeps content
+   * from tearing across a page boundary; `@page` margin boxes carry the
+   * repeating letterhead, contact line and page number (a `position: fixed`
+   * header does NOT repeat across pages in Chrome's print output — proven
+   * earlier by reading the generated PDF's own text).
+   */
 
   const quoteNo = withRevisionSuffix(quotation.quoteNo, quotation.revision);
 
@@ -192,29 +184,78 @@ export function QuotationDesignB({
           line-height: 1.5;
         }
 
-        /* ── A4 Sheet ── */
+        /* ── Document sheet ──
+           A single continuous flow, not one fixed-height div per page. On
+           screen it is boxed and shadowed to look like an A4 sheet; in print
+           it becomes the natural page content and the browser paginates it —
+           no height is ever imposed on it, so nothing can be clipped by an
+           overflow:hidden boundary the way the old per-page wrapper did. */
         .a4-sheet-b {
           width: 210mm;
-          height: 297mm;
+          min-height: 297mm;
           background: var(--warm);
           margin: 0 auto 10mm auto;
           box-shadow: 0 12px 40px rgba(0,0,0,0.15);
-          position: relative;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
         }
         @media print {
-          .a4-sheet-b {
-            margin: 0;
-            box-shadow: none;
-            height: 297mm;
-            page-break-after: always;
+          .a4-sheet-b { margin: 0; box-shadow: none; width: auto; min-height: auto; }
+          .no-print { display: none !important; }
+          .db-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+          .db-table tr { break-inside: avoid; page-break-inside: avoid; }
+          .db-table thead { display: table-header-group; }
+
+          /* Repeating letterhead + footer on every printed page via @page
+             margin boxes. A position:fixed element does NOT repeat across
+             pages in Chrome's print/PDF output — verified earlier by decoding
+             the actual generated PDF's text, where a fixed header painted on
+             page 1 only. Margin boxes are the mechanism proven to repeat. */
+          @page {
+            size: A4 portrait;
+            /* 13mm is enough for a single-line running letterhead; the
+               original 30mm reservation left content only 251mm to work with
+               on continuation pages and pushed a lightweight closing footer
+               (~12mm of content) onto its own extra page for even a 1-item
+               quotation. */
+            margin: 13mm 15mm 12mm;
+            @top-left {
+              content: "ROYAL DOORS & WINDOWS";
+              font-family: Georgia, "Times New Roman", serif;
+              font-size: 9pt;
+              font-weight: 700;
+              color: #0B4D2E;
+            }
+            @top-right {
+              content: "${quoteNo} · ${(quotation.customer.name ?? "").replace(/"/g, "'")}";
+              font-family: -apple-system, "Segoe UI", sans-serif;
+              font-size: 8pt;
+              color: #5A5A4C;
+            }
+            @bottom-left {
+              content: "Royal Doors & Windows · Official Business Proposal";
+              font-family: -apple-system, "Segoe UI", sans-serif;
+              font-size: 7pt;
+              color: #5A5A4C;
+              text-transform: uppercase;
+              letter-spacing: 0.06em;
+            }
+            @bottom-right {
+              content: "Page " counter(page) " of " counter(pages);
+              font-family: -apple-system, "Segoe UI", sans-serif;
+              font-size: 7.5pt;
+              font-weight: 700;
+              color: #C9962A;
+            }
           }
-          @page { size: A4 portrait; margin: 0; }
+          /* Page 1 carries the full letterhead band in the flow, so it needs
+             no reserved top margin and no running header there. */
+          @page :first {
+            margin: 0 15mm 12mm;
+            @top-left { content: ""; }
+            @top-right { content: ""; }
+          }
         }
 
-        /* ── Header Bar ── */
+        /* ── Header Bar (page 1 only — the full letterhead band) ── */
         .db-header-bar {
           /* Deep emerald rather than a flat mid-green — a subtle diagonal
              gradient toward --brand-mid gives the band some depth instead of
@@ -497,19 +538,22 @@ export function QuotationDesignB({
           padding-right: 1mm;
         }
 
-        /* ── Footer ── */
+        /* ── Closing band ──
+           A single band at the very end of the document (not repeated per
+           page — the real per-page footer is the @page @bottom-left/@bottom-
+           right margin boxes in the print media query above, which DO repeat
+           correctly). Carries the same tagline the old per-page footer did. */
         .db-footer {
           background: var(--brand);
           color: white;
           padding: 3.5mm 15mm;
           display: flex;
-          justify-content: space-between;
+          justify-content: center;
           align-items: center;
           font-size: 7pt;
           letter-spacing: 0.07em;
           border-top: 2.5pt solid var(--accent);
-          flex-shrink: 0;
-          margin-top: auto;
+          margin-top: 6mm;
         }
         .db-footer-caps {
           font-weight: 600;
@@ -518,11 +562,16 @@ export function QuotationDesignB({
           display: flex;
           gap: 4mm;
         }
-        .db-footer-page { color: var(--accent-lt); font-weight: 700; font-size: 7.5pt; }
 
         /* ════════════════════════════════════
            TERMS PAGE
         ════════════════════════════════════ */
+
+        /* Zero-height marker that forces the terms section onto its own
+           page. On screen it does nothing (there is no pagination to force);
+           in print, break-before:page starts a fresh sheet here regardless
+           of how many product rows preceded it. */
+        .db-terms-page-break { break-before: page; page-break-before: always; }
 
         /* FAQ Cards */
         .db-faq-grid {
@@ -672,300 +721,244 @@ export function QuotationDesignB({
       `}</style>
 
       <div className="design-b-doc">
-        {/* ════════════════ ITEM PAGES ════════════════ */}
-        {pages.map((pageRows, pageIndex) => (
-          <div key={pageIndex} className="a4-sheet-b">
-            <PageHeader
-              quoteNo={quoteNo}
-              phone={settings.phone}
-              email={settings.email}
-              website={settings.website}
-              showContact={pageIndex === 0}
-            />
-
-            <div className="db-body">
-              {/* ── Page 1: Quotation & Customer Cards ── */}
-              {pageIndex === 0 && (
-                <div className="db-meta-grid">
-                  {/* Quotation Details */}
-                  <div className="db-card">
-                    <div className="db-card-title">Quotation Details</div>
-                    <div className="db-kv">
-                      <span className="db-kv-lab">Quotation No:</span>
-                      <span className="db-kv-val">
-                        {withRevisionSuffix(quotation.quoteNo, quotation.revision)}
-                      </span>
-                      <span className="db-kv-lab">Date:</span>
-                      <span className="db-kv-val">{formatDate(date)}</span>
-                      <span className="db-kv-lab">Valid Until:</span>
-                      <span className="db-kv-val">{formatDate(validUntil)}</span>
-                      {settings.gstin && (
-                        <>
-                          <span className="db-kv-lab">GSTIN:</span>
-                          <span className="db-kv-val">{settings.gstin}</span>
-                        </>
-                      )}
-                      {settings.addressLines.length > 0 && (
-                        <>
-                          <span className="db-kv-lab">Address:</span>
-                          <span className="db-kv-val">{settings.addressLines.join(", ")}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Customer / Project */}
-                  <div className="db-card">
-                    <div className="db-card-title">Prepared For</div>
-                    <div className="db-customer-name">{quotation.customer.name}</div>
-                    <div className="db-kv">
-                      {quotation.customer.phone && (
-                        <>
-                          <span className="db-kv-lab">Phone:</span>
-                          <span className="db-kv-val">
-                            {formatPhone(quotation.customer.phone)}
-                          </span>
-                        </>
-                      )}
-                      {quotation.customer.project && (
-                        <>
-                          <span className="db-kv-lab">Project:</span>
-                          <span className="db-kv-val">{quotation.customer.project}</span>
-                        </>
-                      )}
-                      {quotation.customer.siteAddress && (
-                        <>
-                          <span className="db-kv-lab">Site:</span>
-                          <span className="db-kv-val">{quotation.customer.siteAddress}</span>
-                        </>
-                      )}
-                      {quotation.customer.referredBy && (
-                        <>
-                          <span className="db-kv-lab">Referred By:</span>
-                          <span className="db-kv-val">{quotation.customer.referredBy}</span>
-                        </>
-                      )}
-                      {preparedByName && (
-                        <>
-                          <span className="db-kv-lab">Prepared By:</span>
-                          <span className="db-kv-val">{preparedByName}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Summary Stripe (Page 1 only) ── */}
-              {pageIndex === 0 && (
-                <div className="db-stripe">
-                  <div className="db-stripe-cell">
-                    <div className="db-stripe-label">Total Items</div>
-                    <div className="db-stripe-value">{totalItems}</div>
-                    <div className="db-stripe-unit">line items</div>
-                  </div>
-                  <div className="db-stripe-cell">
-                    <div className="db-stripe-label">Total Area</div>
-                    <div className="db-stripe-value">{totalSqFt.toFixed(1)}</div>
-                    <div className="db-stripe-unit">sq. ft.</div>
-                  </div>
-                  <div className="db-stripe-cell">
-                    <div className="db-stripe-label">Grand Total</div>
-                    <div className="db-stripe-value">{formatINR(quotation.totals.grandTotal)}</div>
-                    <div className="db-stripe-unit">incl. all charges</div>
-                  </div>
-                </div>
-              )}
-
-              <div className="db-section-title">Product &amp; Price Schedule</div>
-
-              {/* ── Product Table ── */}
-              <table className="db-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: "5%", textAlign: "center" }}>S.No</th>
-                    <th style={{ width: "50%" }}>Product Description</th>
-                    <th style={{ width: "12%", textAlign: "center" }}>Size (ft)</th>
-                    <th style={{ width: "7%", textAlign: "center" }}>Qty</th>
-                    <th style={{ width: "12%", textAlign: "right" }}>Rate (₹)</th>
-                    <th style={{ width: "14%", textAlign: "right" }}>Amount (₹)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((row, rIdx) => {
-                    if (row.type === "room") {
-                      return (
-                        <tr key={`room-${rIdx}`} className="db-room-row">
-                          <td colSpan={6}>
-                            {row.room || "General"}
-                            <span
-                              style={{
-                                float: "right",
-                                fontWeight: 600,
-                                color: "var(--ink-muted)",
-                              }}
-                            >
-                              Room Subtotal: {formatINR(row.subtotal)}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    } else {
-                      const item = row.item;
-                      return (
-                        <tr key={item.id}>
-                          <td
-                            style={{
-                              textAlign: "center",
-                              color: "var(--ink-muted)",
-                              fontWeight: 700,
-                            }}
-                          >
-                            {row.displayIndex}
-                          </td>
-                          <td>
-                            <div className="db-desc-flex">
-                              <div className="db-diag-box">
-                                <WindowDiagram
-                                  type={item.diagram.type}
-                                  widthFt={item.billed.w}
-                                  heightFt={item.billed.h}
-                                  handing={item.diagram.handing}
-                                  fanPoint={item.diagram.fanPoint}
-                                  showDimensions={false}
-                                />
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <div className="db-prod-name">{item.description}</div>
-                                <div className="db-spec-grid">
-                                  {item.specs.profile && (
-                                    <>
-                                      <span className="db-spec-k">Profile</span>
-                                      <span className="db-spec-v">{item.specs.profile}</span>
-                                    </>
-                                  )}
-                                  {item.specs.glass && (
-                                    <>
-                                      <span className="db-spec-k">Glass</span>
-                                      <span className="db-spec-v">
-                                        {item.specs.glass} {item.specs.glassThickness}
-                                      </span>
-                                    </>
-                                  )}
-                                  {item.specs.hardware && (
-                                    <>
-                                      <span className="db-spec-k">Hardware</span>
-                                      <span className="db-spec-v">{item.specs.hardware}</span>
-                                    </>
-                                  )}
-                                  {item.specs.mesh && (
-                                    <>
-                                      <span className="db-spec-k">Mesh</span>
-                                      <span className="db-spec-v">{item.specs.mesh}</span>
-                                    </>
-                                  )}
-                                  {item.specs.colour && (
-                                    <>
-                                      <span className="db-spec-k">Color</span>
-                                      <span className="db-spec-v">{item.specs.colour}</span>
-                                    </>
-                                  )}
-                                  {item.surcharges.map((key) => (
-                                    <React.Fragment key={key}>
-                                      <span className="db-spec-k">Add-on</span>
-                                      <span className="db-spec-v">
-                                        {SURCHARGE_LABELS[key] ?? key}
-                                      </span>
-                                    </React.Fragment>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            {feetToArchLabel(item.billed.w)} × {feetToArchLabel(item.billed.h)}
-                          </td>
-                          <td style={{ textAlign: "center" }}>{item.qty}</td>
-                          <td style={{ textAlign: "right" }}>
-                            {formatINRCompact(effectiveRate(item))}
-                          </td>
-                          <td style={{ textAlign: "right", fontWeight: 700 }}>
-                            {formatINR(item.amount)}
-                          </td>
-                        </tr>
-                      );
-                    }
-                  })}
-                </tbody>
-              </table>
-
-              {/* ── Totals Block — Only on Last Item Page ── */}
-              {pageIndex === pages.length - 1 && (
-                <>
-                  <div className="db-totals-wrap">
-                    <div className="db-totals-box">
-                      <div className="db-tot-row">
-                        <span>Product Subtotal</span>
-                        <span className="db-tot-val">{formatINR(quotation.totals.subtotal)}</span>
-                      </div>
-                      {quotation.gst.enabled && (
-                        <div className="db-tot-row">
-                          <span>GST @{quotation.gst.rate}%</span>
-                          <span className="db-tot-val">
-                            {formatINR(quotation.totals.cgst + quotation.totals.sgst)}
-                          </span>
-                        </div>
-                      )}
-                      {quotation.totals.transportation > 0 && (
-                        <div className="db-tot-row">
-                          <span>Transportation &amp; Handling</span>
-                          <span className="db-tot-val">
-                            {formatINR(quotation.totals.transportation)}
-                          </span>
-                        </div>
-                      )}
-                      <div className="db-tot-grand">
-                        <span>Grand Total</span>
-                        <span className="db-tot-grand-amt">
-                          {formatINR(quotation.totals.grandTotal)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="db-words">
-                    Rupees {amountInWords(quotation.totals.grandTotal)} Only.
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* ── Footer ── */}
-            <div className="db-footer">
-              <div className="db-footer-caps">
-                <span>Sound Insulation</span>
-                <span>·</span>
-                <span>Weather Resistant</span>
-                <span>·</span>
-                <span>Energy Efficient</span>
-              </div>
-              <span className="db-footer-page">
-                Page {pageIndex + 1} of {totalPages}
-              </span>
-            </div>
-          </div>
-        ))}
-
-        {/* ════════════════ TERMS & CONDITIONS PAGE ════════════════ */}
+        {/* One continuous sheet. The browser paginates this naturally in
+            print — no per-page wrapper divs, no fixed heights. See the
+            comment above the pagination-removal note for why. */}
         <div className="a4-sheet-b">
           <PageHeader
             quoteNo={quoteNo}
             phone={settings.phone}
             email={settings.email}
             website={settings.website}
-            showContact={false}
+            showContact
           />
 
           <div className="db-body">
+            <div className="db-meta-grid db-avoid-break">
+              {/* Quotation Details */}
+              <div className="db-card">
+                <div className="db-card-title">Quotation Details</div>
+                <div className="db-kv">
+                  <span className="db-kv-lab">Quotation No:</span>
+                  <span className="db-kv-val">
+                    {withRevisionSuffix(quotation.quoteNo, quotation.revision)}
+                  </span>
+                  <span className="db-kv-lab">Date:</span>
+                  <span className="db-kv-val">{formatDate(date)}</span>
+                  <span className="db-kv-lab">Valid Until:</span>
+                  <span className="db-kv-val">{formatDate(validUntil)}</span>
+                  {settings.gstin && (
+                    <>
+                      <span className="db-kv-lab">GSTIN:</span>
+                      <span className="db-kv-val">{settings.gstin}</span>
+                    </>
+                  )}
+                  {settings.addressLines.length > 0 && (
+                    <>
+                      <span className="db-kv-lab">Address:</span>
+                      <span className="db-kv-val">{settings.addressLines.join(", ")}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Customer / Project */}
+              <div className="db-card">
+                <div className="db-card-title">Prepared For</div>
+                <div className="db-customer-name">{quotation.customer.name}</div>
+                <div className="db-kv">
+                  {quotation.customer.phone && (
+                    <>
+                      <span className="db-kv-lab">Phone:</span>
+                      <span className="db-kv-val">{formatPhone(quotation.customer.phone)}</span>
+                    </>
+                  )}
+                  {quotation.customer.project && (
+                    <>
+                      <span className="db-kv-lab">Project:</span>
+                      <span className="db-kv-val">{quotation.customer.project}</span>
+                    </>
+                  )}
+                  {quotation.customer.siteAddress && (
+                    <>
+                      <span className="db-kv-lab">Site:</span>
+                      <span className="db-kv-val">{quotation.customer.siteAddress}</span>
+                    </>
+                  )}
+                  {quotation.customer.referredBy && (
+                    <>
+                      <span className="db-kv-lab">Referred By:</span>
+                      <span className="db-kv-val">{quotation.customer.referredBy}</span>
+                    </>
+                  )}
+                  {preparedByName && (
+                    <>
+                      <span className="db-kv-lab">Prepared By:</span>
+                      <span className="db-kv-val">{preparedByName}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="db-stripe db-avoid-break">
+              <div className="db-stripe-cell">
+                <div className="db-stripe-label">Total Items</div>
+                <div className="db-stripe-value">{totalItems}</div>
+                <div className="db-stripe-unit">line items</div>
+              </div>
+              <div className="db-stripe-cell">
+                <div className="db-stripe-label">Total Area</div>
+                <div className="db-stripe-value">{totalSqFt.toFixed(1)}</div>
+                <div className="db-stripe-unit">sq. ft.</div>
+              </div>
+              <div className="db-stripe-cell">
+                <div className="db-stripe-label">Grand Total</div>
+                <div className="db-stripe-value">{formatINR(quotation.totals.grandTotal)}</div>
+                <div className="db-stripe-unit">incl. all charges</div>
+              </div>
+            </div>
+
+            <div className="db-section-title">Product &amp; Price Schedule</div>
+
+            {/* ── Product Table — one table, browser-paginated ── */}
+            <table className="db-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "5%", textAlign: "center" }}>S.No</th>
+                  <th style={{ width: "50%" }}>Product Description</th>
+                  <th style={{ width: "12%", textAlign: "center" }}>Size (ft)</th>
+                  <th style={{ width: "7%", textAlign: "center" }}>Qty</th>
+                  <th style={{ width: "12%", textAlign: "right" }}>Rate (₹)</th>
+                  <th style={{ width: "14%", textAlign: "right" }}>Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {renderRows.map((row, rIdx) => {
+                  if (row.type === "room") {
+                    return (
+                      <tr key={`room-${rIdx}`} className="db-room-row">
+                        <td colSpan={6}>
+                          {row.room || "General"}
+                          <span style={{ float: "right", fontWeight: 600, color: "var(--ink-muted)" }}>
+                            Room Subtotal: {formatINR(row.subtotal)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  } else {
+                    const item = row.item;
+                    return (
+                      <tr key={item.id}>
+                        <td style={{ textAlign: "center", color: "var(--ink-muted)", fontWeight: 700 }}>
+                          {row.displayIndex}
+                        </td>
+                        <td>
+                          <div className="db-desc-flex">
+                            <div className="db-diag-box">
+                              <WindowDiagram
+                                type={item.diagram.type}
+                                widthFt={item.billed.w}
+                                heightFt={item.billed.h}
+                                handing={item.diagram.handing}
+                                fanPoint={item.diagram.fanPoint}
+                                showDimensions={false}
+                              />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div className="db-prod-name">{item.description}</div>
+                              <div className="db-spec-grid">
+                                {item.specs.profile && (
+                                  <>
+                                    <span className="db-spec-k">Profile</span>
+                                    <span className="db-spec-v">{item.specs.profile}</span>
+                                  </>
+                                )}
+                                {item.specs.glass && (
+                                  <>
+                                    <span className="db-spec-k">Glass</span>
+                                    <span className="db-spec-v">
+                                      {item.specs.glass} {item.specs.glassThickness}
+                                    </span>
+                                  </>
+                                )}
+                                {item.specs.hardware && (
+                                  <>
+                                    <span className="db-spec-k">Hardware</span>
+                                    <span className="db-spec-v">{item.specs.hardware}</span>
+                                  </>
+                                )}
+                                {item.specs.mesh && (
+                                  <>
+                                    <span className="db-spec-k">Mesh</span>
+                                    <span className="db-spec-v">{item.specs.mesh}</span>
+                                  </>
+                                )}
+                                {item.specs.colour && (
+                                  <>
+                                    <span className="db-spec-k">Color</span>
+                                    <span className="db-spec-v">{item.specs.colour}</span>
+                                  </>
+                                )}
+                                {item.surcharges.map((key) => (
+                                  <React.Fragment key={key}>
+                                    <span className="db-spec-k">Add-on</span>
+                                    <span className="db-spec-v">{SURCHARGE_LABELS[key] ?? key}</span>
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {feetToArchLabel(item.billed.w)} × {feetToArchLabel(item.billed.h)}
+                        </td>
+                        <td style={{ textAlign: "center" }}>{item.qty}</td>
+                        <td style={{ textAlign: "right" }}>{formatINRCompact(effectiveRate(item))}</td>
+                        <td style={{ textAlign: "right", fontWeight: 700 }}>{formatINR(item.amount)}</td>
+                      </tr>
+                    );
+                  }
+                })}
+              </tbody>
+            </table>
+
+            <div className="db-totals-wrap db-avoid-break">
+              <div className="db-totals-box">
+                <div className="db-tot-row">
+                  <span>Product Subtotal</span>
+                  <span className="db-tot-val">{formatINR(quotation.totals.subtotal)}</span>
+                </div>
+                {quotation.gst.enabled && (
+                  <div className="db-tot-row">
+                    <span>GST @{quotation.gst.rate}%</span>
+                    <span className="db-tot-val">
+                      {formatINR(quotation.totals.cgst + quotation.totals.sgst)}
+                    </span>
+                  </div>
+                )}
+                {quotation.totals.transportation > 0 && (
+                  <div className="db-tot-row">
+                    <span>Transportation &amp; Handling</span>
+                    <span className="db-tot-val">{formatINR(quotation.totals.transportation)}</span>
+                  </div>
+                )}
+                <div className="db-tot-grand">
+                  <span>Grand Total</span>
+                  <span className="db-tot-grand-amt">{formatINR(quotation.totals.grandTotal)}</span>
+                </div>
+              </div>
+            </div>
+            {/* amountInWords() already returns the full "Rupees ... Only"
+                phrase — wrapping it again here previously produced
+                "Rupees Rupees ... Only Only." */}
+            <div className="db-words db-avoid-break">{amountInWords(quotation.totals.grandTotal)}</div>
+
+            {/* ── Terms & Commercial Conditions — forced onto its own page ──
+                A quotation's terms are fixed-size regardless of item count, so
+                they always start a fresh page and can never be split awkwardly
+                by however many product rows happened to precede them. */}
+            <div className="db-terms-page-break" />
             <div className="db-section-title">Terms &amp; Commercial Conditions</div>
 
             {/* ── FAQ Cards (2×2) ── */}
@@ -1101,7 +1094,10 @@ export function QuotationDesignB({
             </div>
 
             {/* ── Dual Signatory ── */}
-            <div className="db-sig-row">
+            {/* Never allow "Customer Signature" to print at the bottom of one
+                page with the actual line on the next — the whole block moves
+                together or not at all. */}
+            <div className="db-sig-row db-avoid-break">
               <div className="db-sig-box">
                 <div className="db-sig-space" />
                 <div className="db-sig-line">Customer Signature</div>
@@ -1115,20 +1111,29 @@ export function QuotationDesignB({
             </div>
 
             {/* ── Thank You Closing ── */}
-            <div className="db-closing">
+            <div className="db-closing db-avoid-break">
               <div className="db-closing-text">
                 Thank you for choosing Royal Doors &amp; Windows.
               </div>
             </div>
           </div>
 
+          {/* No avoid-break here: this is a decorative tagline, not something
+              that reads as broken if it happened to start a page on its own.
+              Marking it avoid-break was what pushed a whole extra page into
+              existence for short quotations — the signature+closing block just
+              barely fit on the terms page, but the footer's own avoid-break
+              then refused to let it squeeze into the few remaining
+              millimetres, so the ENTIRE (tiny) footer moved to a fresh page
+              instead of the few mm it needed being handled by ordinary flow. */}
           <div className="db-footer">
             <div className="db-footer-caps">
-              Royal Doors &amp; Windows · Official Business Proposal
+              <span>Sound Insulation</span>
+              <span>·</span>
+              <span>Weather Resistant</span>
+              <span>·</span>
+              <span>Energy Efficient</span>
             </div>
-            <span className="db-footer-page">
-              Page {totalPages} of {totalPages}
-            </span>
           </div>
         </div>
       </div>
