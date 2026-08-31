@@ -26,6 +26,7 @@ export interface QuotationSavePayload {
     specs: BuilderItem["specs"];
     surcharges: string[];
     toughenedGlassMm?: number;
+    colorSurchargeOverride?: number;
     customAddons: BuilderItem["customAddons"];
     diagram: {
       type: BuilderItem["diagramType"];
@@ -259,6 +260,7 @@ export function QuotationBuilder({
           specs: item.specs,
           surcharges: item.surcharges,
           toughenedGlassMm: item.toughenedGlassMm,
+          colorSurchargeOverride: item.colorSurchargeOverride,
           customAddons: item.customAddons,
           diagram: { type: item.diagramType, panels: 2, meshPanels: 0, handing: item.handing, fanPoint: item.fanPoint },
           remarks: item.remarks,

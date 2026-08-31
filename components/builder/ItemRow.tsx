@@ -86,9 +86,11 @@ export function ItemRow({
       rate: product.defaultRate,
       surcharges: [],
       toughenedGlassMm: undefined,
-      // Cleared with the rest: a DGU charge left over from the previous product
-      // would silently ride along onto an unrelated one.
+      // Cleared with the rest: a DGU charge, or a colour-surcharge override
+      // set for the previous product, would otherwise silently ride along
+      // onto an unrelated one.
       customAddons: [],
+      colorSurchargeOverride: undefined,
       // The fan-point variants are distinct products, so the flag has to follow
       // the product choice — otherwise picking "Ventilator with fan point"
       // leaves fanPoint false and draws the plain louvered vent, making the two
@@ -108,10 +110,13 @@ export function ItemRow({
 
   const showFanPoint = item.diagramType === "ventilator";
 
-  // Live hint next to the Colour field — computed via the same functions
-  // that drive the actual amount (lib/pricing.ts), so it can never show a
-  // number the real charge doesn't match.
-  const colorHint = showFanPoint
+  // Editable override next to the Colour field, computed via the same
+  // functions that drive the actual amount (lib/pricing.ts) so the shown
+  // default can never disagree with the real charge. colorHintDefault (no
+  // override applied) decides whether this colour is priced at all — the
+  // override control only appears once a surcharge is genuinely active, so
+  // there's nothing to edit on a plain White selection.
+  const colorHintDefault = showFanPoint
     ? colorFlatSurcharge({ colour: item.specs.colour, diagramType: item.diagramType, fanPoint: item.fanPoint })
     : item.pricingMode === "per_sqft"
       ? colorPerSqftSurcharge(item.specs.colour, item.rate)
@@ -324,7 +329,17 @@ export function ItemRow({
           {selectedProduct && selectedProduct.specOptions.colours.length > 0 && (
             <div>
               <label className={labelClass()}>Colour</label>
-              <select className={inputClass("w-full")} value={item.specs.colour} onChange={(e) => patch({ specs: { ...item.specs, colour: e.target.value } })}>
+              <select
+                className={inputClass("w-full")}
+                value={item.specs.colour}
+                onChange={(e) =>
+                  // Reset any override on colour change — it was set for the
+                  // PREVIOUS colour's surcharge and would otherwise silently
+                  // carry over to an unrelated one (e.g. a Black override
+                  // applying to a newly-picked Walnut).
+                  patch({ specs: { ...item.specs, colour: e.target.value }, colorSurchargeOverride: undefined })
+                }
+              >
                 <option value="">White</option>
                 {selectedProduct.specOptions.colours.map((c) => (
                   <option key={c} value={c}>
@@ -332,11 +347,35 @@ export function ItemRow({
                   </option>
                 ))}
               </select>
-              {colorHint > 0 && (
-                <p className="mt-1 text-xs text-amber-700">
-                  +₹{colorHint.toLocaleString("en-IN")}
-                  {showFanPoint ? "" : "/sqft"} for this colour
-                </p>
+              {colorHintDefault > 0 && (
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-700">
+                  <span>+₹</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={item.colorSurchargeOverride ?? colorHintDefault}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        patch({ colorSurchargeOverride: undefined });
+                        return;
+                      }
+                      const n = Number(raw);
+                      patch({ colorSurchargeOverride: Number.isNaN(n) ? undefined : n });
+                    }}
+                    className="w-16 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800 focus:border-amber-500 focus:outline-none"
+                  />
+                  <span>{showFanPoint ? "" : "/sqft"} for this colour</span>
+                  {item.colorSurchargeOverride !== undefined && item.colorSurchargeOverride !== colorHintDefault && (
+                    <button
+                      type="button"
+                      onClick={() => patch({ colorSurchargeOverride: undefined })}
+                      className="text-neutral-400 underline hover:text-neutral-600"
+                    >
+                      reset to ₹{colorHintDefault}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}

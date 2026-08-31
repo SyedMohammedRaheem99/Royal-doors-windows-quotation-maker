@@ -40,6 +40,7 @@ function computeQuotationPricing(input: QuotationInput) {
           colour: item.specs.colour,
           diagramType: item.diagram.type,
           fanPoint: item.diagram.fanPoint,
+          override: item.colorSurchargeOverride,
         }),
     });
     return { ...item, ...computed };
@@ -252,6 +253,9 @@ export async function duplicateQuotation(
       specs: item.specs,
       surcharges: item.surcharges,
       toughenedGlassMm: item.toughenedGlassMm,
+      // A duplicate that dropped this would silently revert to the computed
+      // default colour surcharge, undoing a deliberate per-line override.
+      colorSurchargeOverride: item.colorSurchargeOverride,
       // Copied with fresh ids: a duplicate that dropped these would silently
       // under-price the new quotation against the one it was cloned from.
       customAddons: (item.customAddons ?? []).map((a) => ({ ...a, id: crypto.randomUUID() })),

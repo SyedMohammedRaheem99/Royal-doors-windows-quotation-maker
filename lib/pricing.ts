@@ -178,10 +178,18 @@ function isWhiteOrUnset(colour: string): boolean {
  * surcharge. Returns 0 for a colour with no pricing rule, and 0 on a
  * per_unit item — see colorFlatSurcharge() for the ventilator (per_unit)
  * case, which this function deliberately does not handle.
+ *
+ * `override`, when a number (including 0), replaces the computed default
+ * entirely — staff can give one customer a special rate on a colour without
+ * touching the shared COLOR_SURCHARGES constant, which would affect every
+ * other quotation. `undefined` (not overridden) falls through to the
+ * default. Still returns 0 for an unpriced colour even with an override set
+ * — an override only ever adjusts an ALREADY-active surcharge, it can't
+ * invent one on a colour with no pricing rule at all.
  */
-export function colorPerSqftSurcharge(colour: string, baseRate: number): number {
-  if (DARK_COLORS.has(colour)) return COLOR_SURCHARGES.darkColor;
-  if (WOOD_TONE_COLORS.has(colour)) return baseRate * COLOR_SURCHARGES.woodToneMultiplier;
+export function colorPerSqftSurcharge(colour: string, baseRate: number, override?: number): number {
+  if (DARK_COLORS.has(colour)) return override ?? COLOR_SURCHARGES.darkColor;
+  if (WOOD_TONE_COLORS.has(colour)) return override ?? baseRate * COLOR_SURCHARGES.woodToneMultiplier;
   return 0;
 }
 
@@ -192,10 +200,18 @@ export function colorPerSqftSurcharge(colour: string, baseRate: number): number 
  * anything that isn't a ventilator (see diagramType), so it's safe to call
  * unconditionally alongside colorPerSqftSurcharge() without double-charging
  * a non-ventilator item.
+ *
+ * `override` behaves exactly as in colorPerSqftSurcharge() above.
  */
-export function colorFlatSurcharge(params: { colour: string; diagramType: string; fanPoint: boolean }): number {
+export function colorFlatSurcharge(params: {
+  colour: string;
+  diagramType: string;
+  fanPoint: boolean;
+  override?: number;
+}): number {
   if (params.diagramType !== "ventilator") return 0;
   if (isWhiteOrUnset(params.colour)) return 0;
+  if (params.override !== undefined) return params.override;
   return params.fanPoint ? COLOR_SURCHARGES.ventilatorFanPointColor : COLOR_SURCHARGES.ventilatorNoFanPointColor;
 }
 
@@ -255,6 +271,8 @@ export function effectiveRate(item: {
    *  ventilator's colour surcharge is flat, not per-sqft, and is handled
    *  separately by colorFlatSurcharge() in computeQuotationPricing(). */
   colour?: string;
+  /** Per-line override of the computed colour surcharge — see colorPerSqftSurcharge(). */
+  colorSurchargeOverride?: number;
 }): number {
   if (item.pricingMode !== "per_sqft") return item.rate;
   const flatSurchargeSum = item.surcharges.reduce(
@@ -263,7 +281,9 @@ export function effectiveRate(item: {
   );
   const toughenedSurcharge = item.toughenedGlassMm ? toughenedGlassSurcharge(item.toughenedGlassMm) : 0;
   const customPerSqft = customAddonPerSqftTotal(item.customAddons, item.pricingMode);
-  const colorSurcharge = item.colour ? colorPerSqftSurcharge(item.colour, item.rate) : 0;
+  const colorSurcharge = item.colour
+    ? colorPerSqftSurcharge(item.colour, item.rate, item.colorSurchargeOverride)
+    : 0;
   return item.rate + flatSurchargeSum + toughenedSurcharge + customPerSqft + colorSurcharge;
 }
 

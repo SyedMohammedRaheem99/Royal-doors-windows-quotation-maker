@@ -23,6 +23,8 @@ export interface BuilderItem {
   surcharges: string[]; // keys into SURCHARGES
   /** Priced separately from `surcharges` — see lib/pricing.ts's toughenedGlassSurcharge(). */
   toughenedGlassMm?: number;
+  /** Per-line override of the computed colour surcharge — see lib/pricing.ts's colorPerSqftSurcharge(). */
+  colorSurchargeOverride?: number;
   /** Free-form priced extras (DGU glass, WPC fitting, one-offs) — see CustomAddon. */
   customAddons: CustomAddon[];
   remarks: string;

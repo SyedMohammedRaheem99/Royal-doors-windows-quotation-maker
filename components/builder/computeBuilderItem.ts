@@ -34,7 +34,12 @@ export function computeBuilderItem(item: BuilderItem): QuotationItemComputed & {
     // rides alongside the custom-addon flat total rather than inside `rate`.
     flatAddonTotal:
       customAddonFlatTotal(item.customAddons) +
-      colorFlatSurcharge({ colour: item.specs.colour, diagramType: item.diagramType, fanPoint: item.fanPoint }),
+      colorFlatSurcharge({
+        colour: item.specs.colour,
+        diagramType: item.diagramType,
+        fanPoint: item.fanPoint,
+        override: item.colorSurchargeOverride,
+      }),
   });
 
   return { ...computed, effectiveRate: rate };

@@ -349,6 +349,18 @@ export const QuotationItemSchema = z.object({
    */
   toughenedGlassMm: z.number().positive().optional(),
   /**
+   * Overrides the computed colour surcharge (lib/pricing.ts's
+   * colorPerSqftSurcharge/colorFlatSurcharge) for THIS line only, when set.
+   * The client-confirmed defaults (+₹100/sqft dark colours, base-rate-double
+   * wood-tone, ₹1000/₹500 ventilator flat) are a starting point, not a fixed
+   * price — staff need to be able to give one customer a special rate on a
+   * colour without a code change or affecting any other quotation. Absent
+   * (undefined) means "use the computed default"; 0 is a deliberate
+   * override to waive the surcharge entirely, so it must stay distinct from
+   * "not set" — hence optional rather than defaulting to 0.
+   */
+  colorSurchargeOverride: z.number().nonnegative().optional(),
+  /**
    * Free-form priced extras the rate card has no key for — DGU glass at a
    * negotiated thickness, a WPC door's fitting charge, a one-off bracket.
    * Deliberately generic rather than a named key per charge: the two that

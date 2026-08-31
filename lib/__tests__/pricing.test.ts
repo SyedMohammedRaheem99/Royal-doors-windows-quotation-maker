@@ -630,3 +630,58 @@ describe("colour pricing — ventilator flat surcharge (colorFlatSurcharge)", ()
     expect(computed.amount).toBe(1800 * 6 + 1000);
   });
 });
+
+/**
+ * Per-line override — staff can give one customer a special colour
+ * surcharge without touching the shared COLOR_SURCHARGES constant that
+ * every other quotation relies on.
+ */
+describe("colour pricing — per-line override", () => {
+  it("replaces the dark-colour default when an override is given", () => {
+    expect(colorPerSqftSurcharge("Black", 350, 50)).toBe(50);
+    expect(colorPerSqftSurcharge("Black", 350, 50)).not.toBe(COLOR_SURCHARGES.darkColor);
+  });
+
+  it("replaces the wood-tone default (base-rate double) when an override is given", () => {
+    expect(colorPerSqftSurcharge("Walnut", 500, 200)).toBe(200);
+  });
+
+  it("0 is a real override — waives the surcharge entirely, distinct from 'not set'", () => {
+    expect(colorPerSqftSurcharge("Black", 350, 0)).toBe(0);
+    // undefined (not passed) still falls through to the computed default.
+    expect(colorPerSqftSurcharge("Black", 350, undefined)).toBe(COLOR_SURCHARGES.darkColor);
+  });
+
+  it("an override on an UNPRICED colour still adds nothing — it can only adjust an already-active surcharge", () => {
+    expect(colorPerSqftSurcharge("White", 350, 999)).toBe(0);
+    expect(colorPerSqftSurcharge("Teak", 350, 999)).toBe(0);
+  });
+
+  it("flows through effectiveRate via colorSurchargeOverride", () => {
+    const rate = effectiveRate({
+      rate: 350,
+      pricingMode: "per_sqft",
+      surcharges: [],
+      colour: "Black",
+      colorSurchargeOverride: 40,
+    });
+    expect(rate).toBe(350 + 40);
+  });
+
+  it("replaces the ventilator flat default (both fan-point and no-fan-point) when an override is given", () => {
+    expect(colorFlatSurcharge({ colour: "Black", diagramType: "ventilator", fanPoint: true, override: 750 })).toBe(
+      750
+    );
+    expect(colorFlatSurcharge({ colour: "Black", diagramType: "ventilator", fanPoint: false, override: 750 })).toBe(
+      750
+    );
+  });
+
+  it("0 is a real override on the ventilator flat rule too", () => {
+    expect(colorFlatSurcharge({ colour: "Black", diagramType: "ventilator", fanPoint: true, override: 0 })).toBe(0);
+  });
+
+  it("a ventilator override still adds nothing on White — override can't invent a surcharge on an unpriced colour", () => {
+    expect(colorFlatSurcharge({ colour: "White", diagramType: "ventilator", fanPoint: true, override: 999 })).toBe(0);
+  });
+});

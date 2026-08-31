@@ -995,6 +995,15 @@ export function QuotationDesignB({
                   // colour must be passed for the dark/wood-tone surcharge to fold
                   // in — see lib/pricing.ts's colorPerSqftSurcharge().
                   const printedRate = effectiveRate({ ...item, colour: item.specs.colour });
+                  const ventilatorColorFlat =
+                    item.diagram.type === "ventilator"
+                      ? colorFlatSurcharge({
+                          colour: item.specs.colour,
+                          diagramType: item.diagram.type,
+                          fanPoint: item.diagram.fanPoint,
+                          override: item.colorSurchargeOverride,
+                        })
+                      : 0;
                   return (
                     <tr key={item.id}>
                         <td style={{ textAlign: "center", color: "var(--ink-muted)", fontWeight: 700 }}>
@@ -1052,25 +1061,14 @@ export function QuotationDesignB({
                                     shows in the Rate column's breakdown below like the
                                     per_sqft dark/wood-tone surcharge does — disclosed
                                     here instead, same treatment as a custom add-on. */}
-                                {item.diagram.type === "ventilator" &&
-                                  colorFlatSurcharge({
-                                    colour: item.specs.colour,
-                                    diagramType: item.diagram.type,
-                                    fanPoint: item.diagram.fanPoint,
-                                  }) > 0 && (
-                                    <>
-                                      <span className="db-spec-k">Add-on</span>
-                                      <span className="db-spec-v">
-                                        {item.specs.colour} colour (+₹
-                                        {colorFlatSurcharge({
-                                          colour: item.specs.colour,
-                                          diagramType: item.diagram.type,
-                                          fanPoint: item.diagram.fanPoint,
-                                        })}{" "}
-                                        flat)
-                                      </span>
-                                    </>
-                                  )}
+                                {ventilatorColorFlat > 0 && (
+                                  <>
+                                    <span className="db-spec-k">Add-on</span>
+                                    <span className="db-spec-v">
+                                      {item.specs.colour} colour (+₹{ventilatorColorFlat} flat)
+                                    </span>
+                                  </>
+                                )}
                                 {item.surcharges.map((key) => (
                                   <React.Fragment key={key}>
                                     <span className="db-spec-k">Add-on</span>
