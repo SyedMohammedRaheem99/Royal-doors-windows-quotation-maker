@@ -10,6 +10,10 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* The brand serif. Must stay identical to the stack used by the printed
+     document's letterhead (components/print/QuotationDocument.tsx) so the app
+     and the PDF it produces read as one brand. */
+  --font-serif: Georgia, "Times New Roman", serif;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -11,6 +11,7 @@ const fail = <T = never>(error: string): Result<T> => ({ ok: false, error });
 export type StoredUser = Omit<UserDoc, "passwordHash"> & { _id: ObjectId };
 
 function toPublic(doc: UserDoc & { _id: ObjectId }): StoredUser {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { passwordHash: _passwordHash, ...rest } = doc;
   return rest;
 }

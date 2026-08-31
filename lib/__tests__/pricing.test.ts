@@ -186,8 +186,21 @@ describe("amount in words — Indian lakh/crore grouping", () => {
     expect(rupeesInWords(152654)).toBe("One Lakh Fifty Two Thousand Six Hundred Fifty Four");
   });
 
-  it("wraps with the INR prefix and 'only' suffix", () => {
-    expect(amountInWords(1000)).toBe("INR. One Thousand only.");
+  it("wraps as a formal 'Rupees ... Only' phrase", () => {
+    // Not "INR. ... only." — INR is an ISO code, so the trailing full stop was
+    // wrong, and Indian commercial documents say "Rupees".
+    expect(amountInWords(1000)).toBe("Rupees One Thousand Only");
+  });
+
+  it("hyphenates compound numbers, as a bank or auditor expects", () => {
+    expect(amountInWords(238743)).toBe(
+      "Rupees Two Lakh Thirty-Eight Thousand Seven Hundred Forty-Three Only"
+    );
+  });
+
+  it("does not hyphenate a round ten or a teen", () => {
+    expect(amountInWords(40000)).toBe("Rupees Forty Thousand Only");
+    expect(amountInWords(15)).toBe("Rupees Fifteen Only");
   });
 });
 

@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Column layout so AppFooter's mt-auto pins it to the bottom of the
           viewport on short pages instead of floating mid-screen. */}
       <div className="flex min-h-screen flex-col bg-neutral-50">
-        <header className="border-b border-neutral-200 bg-[#0f3d2e]">
+        <header className="border-b-2 border-[#c9a227]/70 bg-[#0f3d2e]">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
             <div className="flex min-w-0 items-center gap-3 md:gap-8">
               <MobileNavDrawer
@@ -52,16 +52,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 userRole={roleLabel(session?.user?.role)}
                 signOutAction={signOutAction}
               />
-              <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
+              {/* Matches the printed letterhead: ROYAL UPVC as the name a
+                  customer recognises, with the trade line beneath it, set in the
+                  same serif. The app previously said "Royal Doors & Windows" in
+                  flat sans, so the software and the document it produces did not
+                  read as the same brand. */}
+              <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5">
                 <Image
                   src="/logo-mark.png"
                   alt=""
-                  width={32}
-                  height={32}
-                  className="h-7 w-7 shrink-0 rounded border border-[#c9a227]/60 md:h-8 md:w-8"
+                  width={36}
+                  height={36}
+                  className="h-8 w-8 shrink-0 rounded-sm border border-[#c9a227]/60 md:h-9 md:w-9"
                 />
-                <span className="truncate text-base font-semibold text-[#c9a227] md:text-lg">
-                  Royal Doors &amp; Windows
+                <span className="min-w-0 leading-none">
+                  <span className="block truncate font-serif text-[15px] font-bold tracking-wide text-[#c9a227] md:text-[17px]">
+                    ROYAL UPVC
+                  </span>
+                  <span className="mt-[3px] block truncate text-[8px] font-medium tracking-[0.22em] text-[#a9c2b1] md:text-[9px]">
+                    DOORS AND WINDOWS
+                  </span>
                 </span>
               </Link>
               <DesktopNav navLinks={NAV_LINKS} adminNavLinks={ADMIN_NAV_LINKS} isAdmin={isAdmin} />
@@ -74,7 +84,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:py-8">{children}</main>
-        <AppFooter companyName="Royal Doors & Windows" />
+        <AppFooter companyName="Royal Doors and Windows" />
       </div>
     </ToastProvider>
   );

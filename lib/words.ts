@@ -48,7 +48,25 @@ export function rupeesInWords(amount: number): string {
   return parts.join(" ");
 }
 
-/** "INR. Forty nine thousand five hundred & sixty only." */
+/**
+ * "Rupees Two Lakh Thirty-Eight Thousand Seven Hundred Forty-Three Only"
+ *
+ * Standard Indian invoice/quotation form. Three things this deliberately does
+ * NOT do, each of which was wrong in the earlier "INR. ... only." version:
+ * - No "INR." — INR is an ISO 4217 code, not an abbreviation, so the trailing
+ *   full stop was simply incorrect. The customary word on an Indian
+ *   commercial document is "Rupees".
+ * - No trailing full stop. The string is a formal legal phrase, not a
+ *   sentence, and it is set on its own line.
+ * - Compound numbers are hyphenated ("Thirty-Eight", not "Thirty Eight"),
+ *   which is standard English and what a bank or auditor expects to see.
+ *
+ * Title Case throughout is intentional and conventional for this phrase.
+ */
 export function amountInWords(amount: number): string {
-  return `INR. ${rupeesInWords(amount)} only.`;
+  const hyphenated = rupeesInWords(amount).replace(
+    /(Twenty|Thirty|Forty|Fifty|Sixty|Seventy|Eighty|Ninety) (One|Two|Three|Four|Five|Six|Seven|Eight|Nine)/g,
+    "$1-$2"
+  );
+  return `Rupees ${hyphenated} Only`;
 }

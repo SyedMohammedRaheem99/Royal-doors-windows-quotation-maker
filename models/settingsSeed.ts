@@ -18,7 +18,7 @@ function currentIndianFinancialYearLabel(date = new Date()): string {
 
 export const SETTINGS_SEED: Omit<Settings, "_id"> = {
   companyName: "Royal Doors and Windows",
-  addressLines: ["No 935, 2nd Main Road, 4th Cross", "R.K. Hegde Nagar, Thanisandra", "Bangalore - 560077"],
+  addressLines: ["No 935, 2nd Main Road, 4th Cross", "R.K. Hegde Nagar, Thanisandra", "Bangalore 560077"],
   phone: "91485 46403",
   whatsapp: "77603 33403",
   email: "info@royaldoorsandwindows.com",
@@ -39,36 +39,51 @@ export const SETTINGS_SEED: Omit<Settings, "_id"> = {
     // spelling ("Silicon" the element -> "Silicone" the sealant, "Aluminum"
     // -> "Aluminium" to match the rest of the app), fixed grammar, and made
     // the currency format consistent (was a mix of "rs 30", "rs 20/-").
-    // Wording kept plain and factual — this prints on the customer's copy.
+    // Wording kept plain and factual - this prints on the customer's copy.
+    //
+    // The inclusion lines are deliberately PARALLEL noun phrases. They
+    // previously mixed three grammatical forms in one list - a bare fragment
+    // ("BAYDEE ... Profile."), first person active ("We use aluminium mesh
+    // screens.") and passive ("GI reinforcement is used on..."), which read as
+    // three different voices stacked together. They are a list of what the
+    // customer receives, so fragments are right; they just have to be the same
+    // KIND of fragment, and they carry no trailing full stop because they are
+    // not sentences.
+    //
+    // What each line COMMITS TO is unchanged - only the grammar was touched.
     boilerplate: [
-      "We use aluminium mesh screens.",
-      "GI reinforcement is used on all four sides of the frames.",
-      "Premium hardware is used throughout.",
+      "Aluminium mesh screens",
+      "GI reinforcement on all four sides of the frame",
+      "Premium hardware throughout",
       // Client-confirmed: inside-only is the standard; balcony doors get both
       // sides as standard practice, included in the quoted rate (not extra).
-      "Silicone is applied on the inside only. For balcony doors, silicone is applied on both sides.",
-      "No warranty on glass and hardware.",
-      "Sizes above are approximate. Final pricing will be based on the final site measurement.",
-      "Other colours or one-way glass: ₹30 extra per sqft.",
-      "SS mesh, if required: ₹20 extra per sqft.",
-      "Aluminium track, if required: ₹20 extra per sqft.",
+      "Silicone sealing on the inside face; both faces on balcony doors",
+      // A complete sentence, not a fragment: this is the single most important
+      // exclusion on the document and must not read as a passing note.
+      "Glass and hardware are not covered under warranty.",
+      "Sizes shown are approximate. Final pricing is based on site measurement.",
+      // "Other colours" than what? The base is white, which was stated nowhere
+      // on this panel.
+      "Colours other than white, or one-way glass: ₹30 extra per sq.ft",
+      "SS mesh, if required: ₹20 extra per sq.ft",
+      "Aluminium track, if required: ₹20 extra per sq.ft",
     ],
     profiles: [
-      "BAYDEE (Half white) German Technology UPVC Profile.",
-      "GT / Galaxy Trader (Milk white) German Technology UPVC Profile.",
-      "Green Tech German Technology UPVC Profile.",
-      "Fenstech German Technology UPVC Profile.",
-      "Eroline German Technology UPVC Profile.",
+      "BAYDEE (Half white) German-technology uPVC profile",
+      "GT / Galaxy Trader (Milk white) German-technology uPVC profile",
+      "Green Tech German-technology uPVC profile",
+      "Fenstech German-technology uPVC profile",
+      "Eroline German-technology uPVC profile",
     ],
     glass: [
-      "Glass clear or pinned.",
-      "Glass - Pinned glass.",
-      "Glass frosted.",
-      "Glass golden tinted.",
-      "Glass one way blue.",
-      "Glass one way brown.",
-      "Glass one way golden.",
-      "Glass one way green.",
+      "Clear or pinned glass",
+      "Pinned glass",
+      "Frosted glass",
+      "Golden tinted glass",
+      "One-way blue glass",
+      "One-way brown glass",
+      "One-way golden glass",
+      "One-way green glass",
     ],
     warrantyYearsOptions: [15, 10],
     workDurations: [

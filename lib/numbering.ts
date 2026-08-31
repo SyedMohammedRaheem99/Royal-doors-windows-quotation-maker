@@ -1,9 +1,9 @@
-import { getDb } from "./db";
-
-/** "RDW/25-26/0042" — prefix + Indian financial year + zero-padded serial. */
-export function formatQuoteNo(prefix: string, fyLabel: string, serial: number): string {
-  return `${prefix}/${fyLabel}/${String(serial).padStart(4, "0")}`;
-}
+/**
+ * Server-side numbering helpers that touch the database.
+ * DO NOT import this file in Client Components or print documents.
+ * For browser-safe pure helpers, use ./numbering-pure instead.
+ */
+export { formatQuoteNo, formatInvoiceNo, withRevisionSuffix } from "./numbering-pure";
 
 /**
  * Atomically increments the settings counter and returns the next quote
@@ -11,7 +11,9 @@ export function formatQuoteNo(prefix: string, fyLabel: string, serial: number): 
  * salespeople can never be handed the same serial.
  */
 export async function nextQuoteNo(): Promise<string> {
+  const { getDb } = await import("./db");
   const db = await getDb();
+  const { formatQuoteNo } = await import("./numbering-pure");
   const settings = await db.collection("settings").findOneAndUpdate(
     {},
     { $inc: { "quoteNumbering.counter": 1 } },
@@ -24,16 +26,6 @@ export async function nextQuoteNo(): Promise<string> {
 
   const { prefix, financialYearLabel, counter } = settings.quoteNumbering;
   return formatQuoteNo(prefix, financialYearLabel, counter);
-}
-
-/** Revision numbers append as a suffix: RDW/25-26/0042-R1, -R2, ... */
-export function withRevisionSuffix(quoteNo: string, revision: number): string {
-  return revision > 0 ? `${quoteNo}-R${revision}` : quoteNo;
-}
-
-/** "INV/25-26/001" — invoices use a 3-digit serial, matching the reference Tally series. */
-export function formatInvoiceNo(prefix: string, fyLabel: string, serial: number): string {
-  return `${prefix}/${fyLabel}/${String(serial).padStart(3, "0")}`;
 }
 
 function currentIndianFinancialYearLabel(date = new Date()): string {
@@ -51,7 +43,9 @@ function currentIndianFinancialYearLabel(date = new Date()): string {
  * seeded before invoicing existed don't need a re-seed.
  */
 export async function nextInvoiceNo(): Promise<string> {
+  const { getDb } = await import("./db");
   const db = await getDb();
+  const { formatInvoiceNo } = await import("./numbering-pure");
   const settings = await db.collection("settings").findOneAndUpdate(
     {},
     {

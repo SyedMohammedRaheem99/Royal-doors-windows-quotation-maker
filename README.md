@@ -37,7 +37,13 @@ turned up concrete failure modes this app is built to prevent:
   never read back from storage.
 - **Branded A4 print document** with a diagram beside every line item, totals, amount in words,
   terms and bank details. Printed via the browser, so there's no PDF library or headless-Chrome
-  dependency.
+  dependency. It is also **responsive below 700px**, because customers open shared quotation links
+  on a phone: the item schedule becomes one labelled card per item rather than a clipped table.
+
+  > **Print from Chrome or Edge.** Page numbers ("Page 1 of 2") and the repeating letterhead on
+  > continued pages are rendered with CSS `@page` margin boxes, which only Chromium-based browsers
+  > implement. In Firefox or Safari the document still prints correctly, but pages 2+ carry no
+  > running header and no page number. Verified by decoding the generated PDF's own text.
 - **Quote numbering** — `RDW/25-26/0042`, Indian financial year, atomic counter, `-R1` revision
   suffixes.
 - **Duplicate as a variant** — same measurements, new quote number, ready to re-price (a workflow

@@ -19,7 +19,16 @@ export interface WindowDiagramProps {
 }
 
 const STROKE = "#1f3d2e";
-const STROKE_WIDTH = 1.6;
+const STROKE_WIDTH = 2.6;
+/**
+ * Detail strokes (glass/panel outlines, louvre slats, hardware). Scaled with
+ * STROKE_WIDTH so the whole drawing keeps its weight relationships when it is
+ * shrunk into an ~20mm print cell; at the previous 1u these vanished to a
+ * ~0.17pt hairline that laser printers drop inconsistently.
+ */
+const DETAIL_STROKE = 1.7;
+/** Swing-arc / dashed indicator lines — deliberately lighter than a real edge. */
+const HINT_STROKE = 1.4;
 const GLASS_FILL = "#e9f1f4";
 const WOOD_FILL = "#c9a876";
 const DIM_COLOR = "#6b7280";
@@ -27,17 +36,24 @@ const DIM_COLOR = "#6b7280";
 const VIEW_W = 300;
 const VIEW_H = 220;
 const FRAME_BOX: Rect = { x: 54, y: 14, w: 208, h: 138 };
+/**
+ * With dimension lines hidden the 54u left / ~68u bottom gutter FRAME_BOX
+ * reserves for them is dead space — on the printed schedule that gutter was
+ * ~40% of an already-tiny 18mm cell. Drawing into the full canvas instead is
+ * what makes the print thumbnail legible.
+ */
+const FULL_BOX: Rect = { x: 8, y: 8, w: 284, h: 204 };
 
 type ColumnKind = "glass" | "mesh" | "fixedGlass";
 type Opening = "none" | "slideH" | "slideV" | "hingeLeft" | "hingeRight" | "hingeTop";
 
 function GlassFill({ r }: { r: Rect }) {
-  return <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={GLASS_FILL} stroke={STROKE} strokeWidth={1} />;
+  return <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={GLASS_FILL} stroke={STROKE} strokeWidth={DETAIL_STROKE} />;
 }
 
 function MeshFill({ r, patternId }: { r: Rect; patternId: string }) {
   return (
-    <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={`url(#${patternId})`} stroke={STROKE} strokeWidth={1} />
+    <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={`url(#${patternId})`} stroke={STROKE} strokeWidth={DETAIL_STROKE} />
   );
 }
 
@@ -46,7 +62,7 @@ function LouverFill({ r }: { r: Rect }) {
   const gap = r.h / slats;
   return (
     <g>
-      <rect x={r.x} y={r.y} width={r.w} height={r.h} fill="#f4f5f0" stroke={STROKE} strokeWidth={1} />
+      <rect x={r.x} y={r.y} width={r.w} height={r.h} fill="#f4f5f0" stroke={STROKE} strokeWidth={DETAIL_STROKE} />
       {Array.from({ length: slats }).map((_, i) => (
         <line
           key={i}
@@ -55,7 +71,7 @@ function LouverFill({ r }: { r: Rect }) {
           y1={r.y + (i + 0.5) * gap}
           y2={r.y + (i + 0.5) * gap}
           stroke={STROKE}
-          strokeWidth={1}
+          strokeWidth={DETAIL_STROKE}
         />
       ))}
     </g>
@@ -63,7 +79,7 @@ function LouverFill({ r }: { r: Rect }) {
 }
 
 function SolidLeaf({ r }: { r: Rect }) {
-  return <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={WOOD_FILL} stroke={STROKE} strokeWidth={1} />;
+  return <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={WOOD_FILL} stroke={STROKE} strokeWidth={DETAIL_STROKE} />;
 }
 
 function Mullion({ x, y1, y2 }: { x: number; y1: number; y2: number }) {
@@ -87,7 +103,7 @@ function SlideArrowH({ r }: { r: Rect }) {
   const shaft = x2 - x1;
   const head = Math.max(2, Math.min(7, shaft / 2 - 1));
   return (
-    <g stroke={STROKE} strokeWidth={1.2} fill="none">
+    <g stroke={STROKE} strokeWidth={DETAIL_STROKE} fill="none">
       <line x1={x1} x2={x2} y1={y} y2={y} />
       <polyline points={`${x1 + head},${y - head} ${x1},${y} ${x1 + head},${y + head}`} />
       <polyline points={`${x2 - head},${y - head} ${x2},${y} ${x2 - head},${y + head}`} />
@@ -102,7 +118,7 @@ function SlideArrowV({ r }: { r: Rect }) {
   const shaft = y2 - y1;
   const head = Math.max(2, Math.min(7, shaft / 2 - 1));
   return (
-    <g stroke={STROKE} strokeWidth={1.2} fill="none">
+    <g stroke={STROKE} strokeWidth={DETAIL_STROKE} fill="none">
       <line x1={x} x2={x} y1={y1} y2={y2} />
       <polyline points={`${x - head},${y1 + head} ${x},${y1} ${x + head},${y1 + head}`} />
       <polyline points={`${x - head},${y2 - head} ${x},${y2} ${x + head},${y2 - head}`} />
@@ -136,7 +152,7 @@ function HingeTriangle({ r, side }: { r: Rect; side: "left" | "right" | "top" })
   }
 
   return (
-    <g stroke={STROKE} strokeWidth={0.8} strokeDasharray="3,2" fill="none">
+    <g stroke={STROKE} strokeWidth={HINT_STROKE} strokeDasharray="4,2.5" fill="none">
       <line x1={apex[0]} y1={apex[1]} x2={corners[0][0]} y2={corners[0][1]} />
       <line x1={apex[0]} y1={apex[1]} x2={corners[1][0]} y2={corners[1][1]} />
     </g>
@@ -154,7 +170,7 @@ function FanPointMarker({ r }: { r: Rect }) {
   const radius = Math.max(6, Math.min(r.w, r.h) / 2 - 4);
   const blade = radius * 0.62;
   return (
-    <g stroke={STROKE} strokeWidth={1} fill="none">
+    <g stroke={STROKE} strokeWidth={DETAIL_STROKE} fill="none">
       <circle cx={cx} cy={cy} r={radius} />
       <circle cx={cx} cy={cy} r={radius * 0.22} fill={STROKE} stroke="none" />
       {[0, 90, 180, 270].map((deg) => {
@@ -264,7 +280,7 @@ export function WindowDiagram({
   className,
 }: WindowDiagramProps) {
   const meshPatternId = useId().replace(/[:]/g, "");
-  const frame = fitFrame(widthFt, heightFt, FRAME_BOX);
+  const frame = fitFrame(widthFt, heightFt, showDimensions ? FRAME_BOX : FULL_BOX);
   const outer = inset(frame, -3);
 
   const content = renderByType(type, frame, { handing, panels, fanPoint, meshPatternId });
@@ -284,7 +300,7 @@ export function WindowDiagram({
       </defs>
 
       {/* outer sub-frame */}
-      <rect x={outer.x} y={outer.y} width={outer.w} height={outer.h} fill="none" stroke={STROKE} strokeWidth={2} />
+      <rect x={outer.x} y={outer.y} width={outer.w} height={outer.h} fill="none" stroke={STROKE} strokeWidth={3.2} />
 
       {content}
 
@@ -542,10 +558,10 @@ function renderByType(
             height={Math.max(0, frame.h - jamb)}
             fill="#ffffff"
             stroke={STROKE}
-            strokeWidth={1}
+            strokeWidth={DETAIL_STROKE}
           />
-          <rect x={frame.x} y={frame.y} width={frame.w} height={jamb} fill={WOOD_FILL} stroke={STROKE} strokeWidth={1} />
-          <rect x={frame.x} y={frame.y} width={jamb} height={frame.h} fill={WOOD_FILL} stroke={STROKE} strokeWidth={1} />
+          <rect x={frame.x} y={frame.y} width={frame.w} height={jamb} fill={WOOD_FILL} stroke={STROKE} strokeWidth={DETAIL_STROKE} />
+          <rect x={frame.x} y={frame.y} width={jamb} height={frame.h} fill={WOOD_FILL} stroke={STROKE} strokeWidth={DETAIL_STROKE} />
           <rect
             x={frame.x + frame.w - jamb}
             y={frame.y}
@@ -553,7 +569,7 @@ function renderByType(
             height={frame.h}
             fill={WOOD_FILL}
             stroke={STROKE}
-            strokeWidth={1}
+            strokeWidth={DETAIL_STROKE}
           />
         </g>
       );
@@ -574,7 +590,7 @@ function renderByType(
             height={innerPane.h}
             fill="none"
             stroke={STROKE}
-            strokeWidth={1}
+            strokeWidth={DETAIL_STROKE}
             strokeDasharray="3 2"
           />
         </g>
