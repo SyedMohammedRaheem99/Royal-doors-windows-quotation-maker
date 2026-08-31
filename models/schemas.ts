@@ -348,10 +348,38 @@ export const QuotationItemSchema = z.object({
    * lib/pricing.ts's toughenedGlassSurcharge().
    */
   toughenedGlassMm: z.number().positive().optional(),
+  /**
+   * Free-form priced extras the rate card has no key for — DGU glass at a
+   * negotiated thickness, a WPC door's fitting charge, a one-off bracket.
+   * Deliberately generic rather than a named key per charge: the two that
+   * prompted this (DGU, WPC fitting) had no agreed rate table, and a third
+   * would otherwise need a code change every time.
+   *
+   * `basis` matters and is not cosmetic. A per_sqft add-on scales with the
+   * item's area exactly like the toughened-glass surcharge does; a flat one
+   * is added ONCE to the item's amount and must survive on per_unit items
+   * too, where there is no area to scale against. See lib/pricing.ts's
+   * customAddonTotal() — the flat case is precisely the path that the
+   * SURCHARGES map cannot serve, because effectiveRate() (correctly) ignores
+   * surcharges entirely on per_unit items.
+   */
+  customAddons: z
+    .array(
+      z.object({
+        id: z.string(),
+        /** What staff typed: ₹/sqft when basis is per_sqft, else a flat ₹. */
+        amount: z.number().nonnegative(),
+        basis: z.enum(["flat", "per_sqft"]),
+        /** Printed as the add-on's label, e.g. "DGU glass 20mm". */
+        note: z.string().default(""),
+      })
+    )
+    .default([]),
   diagram: DiagramSpecSchema,
   remarks: z.string().default(""),
 });
 export type QuotationItem = z.infer<typeof QuotationItemSchema>;
+export type CustomAddon = QuotationItem["customAddons"][number];
 
 export const QuotationTotalsSchema = z.object({
   subtotal: z.number(),

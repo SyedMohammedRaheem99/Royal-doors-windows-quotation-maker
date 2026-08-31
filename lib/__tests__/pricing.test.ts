@@ -9,6 +9,8 @@ import {
   TOUGHENED_GLASS_BASE_RATE,
   TOUGHENED_GLASS_RATE_PER_MM,
   toughenedGlassSurcharge,
+  customAddonFlatTotal,
+  customAddonPerSqftTotal,
 } from "../pricing";
 import { feetToArchLabel, mmToFeet, snapToHalfFoot, suggestBilledFeet } from "../dimensions";
 import { amountInWords, rupeesInWords } from "../words";
@@ -403,5 +405,123 @@ describe("14-item reference quotation — end-to-end regression (client-signed f
       totals.grandTotal
     );
     expect(stages.reduce((s, x) => s + (x.amount ?? 0), 0)).toBe(totals.grandTotal);
+  });
+});
+
+/**
+ * Custom add-ons — the generic priced-extra mechanism behind DGU glass and the
+ * WPC fitting charge. Two bases with genuinely different maths, and the flat
+ * one exists specifically because SURCHARGES cannot serve a per_unit item.
+ */
+describe("custom add-ons — per_sqft basis scales with area, flat basis does not", () => {
+  const perSqft = (amount: number) => ({ id: "a", amount, basis: "per_sqft" as const, note: "" });
+  const flat = (amount: number) => ({ id: "b", amount, basis: "flat" as const, note: "" });
+
+  it("folds a per_sqft add-on into the rate, alongside surcharges and toughened glass", () => {
+    const rate = effectiveRate({
+      rate: 300,
+      pricingMode: "per_sqft",
+      surcharges: ["ssMesh"],
+      toughenedGlassMm: 8,
+      customAddons: [perSqft(80)],
+    });
+    expect(rate).toBe(300 + SURCHARGES.ssMesh + toughenedGlassSurcharge(8) + 80);
+  });
+
+  it("keeps a flat add-on OUT of the rate — it must not scale with area", () => {
+    const rate = effectiveRate({
+      rate: 300,
+      pricingMode: "per_sqft",
+      surcharges: [],
+      customAddons: [flat(1500)],
+    });
+    expect(rate).toBe(300);
+  });
+
+  it("ignores a per_sqft add-on on a per_unit item — there is no area to scale against", () => {
+    expect(customAddonPerSqftTotal([perSqft(80)], "per_unit")).toBe(0);
+    const rate = effectiveRate({
+      rate: 4000,
+      pricingMode: "per_unit",
+      surcharges: [],
+      customAddons: [perSqft(80)],
+    });
+    expect(rate).toBe(4000);
+  });
+
+  /**
+   * The WPC case that prompted this. A flush door is per_unit, so effectiveRate
+   * (correctly) ignores every surcharge on it — which is exactly why the ₹1500
+   * fitting charge could never have been modelled as a SURCHARGES key without
+   * being silently dropped from the bill.
+   */
+  it("adds a flat add-on once to a per_unit item, never multiplied by qty", () => {
+    const computed = computeItem({
+      billedWidthFt: 3,
+      billedHeightFt: 7,
+      qty: 2,
+      pricingMode: "per_unit",
+      rate: 4000,
+      flatAddonTotal: customAddonFlatTotal([flat(1500)]),
+    });
+    // 4000 x 2 doors = 8000, plus ONE 1500 fitting charge for the line.
+    expect(computed.amount).toBe(9500);
+    expect(computed.amount).not.toBe(4000 * 2 + 1500 * 2);
+  });
+
+  it("adds a flat add-on once to a per_sqft item, never multiplied by area", () => {
+    const computed = computeItem({
+      billedWidthFt: 4,
+      billedHeightFt: 4,
+      qty: 3,
+      pricingMode: "per_sqft",
+      rate: 200,
+      flatAddonTotal: customAddonFlatTotal([flat(1500)]),
+    });
+    // 200 x 48 sqft = 9600, plus one flat 1500.
+    expect(computed.totalAreaSqft).toBe(48);
+    expect(computed.amount).toBe(11100);
+  });
+
+  it("sums several add-ons of each basis independently", () => {
+    const addons = [perSqft(80), perSqft(20), flat(1500), flat(500)];
+    expect(customAddonPerSqftTotal(addons, "per_sqft")).toBe(100);
+    expect(customAddonFlatTotal(addons)).toBe(2000);
+  });
+
+  it("treats a missing/empty add-on list as zero, so existing items are unaffected", () => {
+    expect(customAddonFlatTotal(undefined)).toBe(0);
+    expect(customAddonFlatTotal([])).toBe(0);
+    expect(customAddonPerSqftTotal(undefined, "per_sqft")).toBe(0);
+    expect(effectiveRate({ rate: 355, pricingMode: "per_sqft", surcharges: [] })).toBe(355);
+  });
+
+  /**
+   * The disclosure invariant, extended to custom add-ons: whatever a document
+   * prints as the rate, times the area, plus the flat charges, must equal the
+   * stored amount. This is the same guarantee that RDW/26-27/0302 broke.
+   */
+  it("printed rate x area + flat add-ons reproduces the stored amount exactly", () => {
+    const item = {
+      rate: 425,
+      pricingMode: "per_sqft" as const,
+      surcharges: ["frenchWindowDesign"],
+      toughenedGlassMm: 5,
+      customAddons: [perSqft(80), flat(1500)],
+    };
+    const printedRate = effectiveRate(item);
+    expect(printedRate).toBe(425 + 50 + 50 + 80); // 605
+
+    const computed = computeItem({
+      billedWidthFt: 13,
+      billedHeightFt: 23,
+      qty: 1,
+      pricingMode: "per_sqft",
+      rate: printedRate,
+      flatAddonTotal: customAddonFlatTotal(item.customAddons),
+    });
+    expect(computed.totalAreaSqft).toBe(299);
+    expect(printedRate * computed.totalAreaSqft + 1500).toBe(computed.amount);
+    expect(computed.amount).toBe(605 * 299 + 1500);
   });
 });

@@ -26,6 +26,7 @@ export interface QuotationSavePayload {
     specs: BuilderItem["specs"];
     surcharges: string[];
     toughenedGlassMm?: number;
+    customAddons: BuilderItem["customAddons"];
     diagram: {
       type: BuilderItem["diagramType"];
       panels: number;
@@ -220,6 +221,7 @@ export function QuotationBuilder({
         measuredMm: source.measuredMm ? { ...source.measuredMm } : undefined,
         specs: { ...source.specs },
         surcharges: [...source.surcharges],
+        customAddons: source.customAddons.map((a) => ({ ...a, id: crypto.randomUUID() })),
       };
       return [...prev.slice(0, index + 1), copy, ...prev.slice(index + 1)];
     });
@@ -257,6 +259,7 @@ export function QuotationBuilder({
           specs: item.specs,
           surcharges: item.surcharges,
           toughenedGlassMm: item.toughenedGlassMm,
+          customAddons: item.customAddons,
           diagram: { type: item.diagramType, panels: 2, meshPanels: 0, handing: item.handing, fanPoint: item.fanPoint },
           remarks: item.remarks,
         })),

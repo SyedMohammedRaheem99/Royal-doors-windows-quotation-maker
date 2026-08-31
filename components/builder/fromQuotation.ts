@@ -21,6 +21,8 @@ export function quotationToBuilderState(quotation: Quotation, terms: TermsLibrar
     specs: item.specs,
     surcharges: item.surcharges,
     toughenedGlassMm: item.toughenedGlassMm,
+    // ?? [] — absent on every quotation saved before custom add-ons existed.
+    customAddons: item.customAddons ?? [],
     remarks: item.remarks,
   }));
 

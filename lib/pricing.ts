@@ -23,6 +23,13 @@ export interface QuotationItemInput {
   qty: number;
   pricingMode: PricingMode;
   rate: number;
+  /**
+   * Flat custom add-ons only — the per_sqft ones are already folded into
+   * `rate` by effectiveRate() before this is called, exactly as the
+   * toughened-glass surcharge is. Passing them here instead would
+   * double-charge them. See customAddonFlatTotal().
+   */
+  flatAddonTotal?: number;
 }
 
 export interface QuotationItemComputed {
@@ -38,10 +45,16 @@ function round2(n: number): number {
 export function computeItem(item: QuotationItemInput): QuotationItemComputed {
   const areaPerUnitSqft = round2(item.billedWidthFt * item.billedHeightFt);
   const totalAreaSqft = round2(areaPerUnitSqft * item.qty);
-  const amount =
+  const rateAmount =
     item.pricingMode === "per_sqft"
       ? round2(item.rate * totalAreaSqft)
       : round2(item.rate * item.qty);
+  // Flat add-ons are added ONCE per line, not per piece and not per sqft —
+  // a WPC door's ₹1500 fitting charge is a single charge for the job on that
+  // line, regardless of how many doors or how large they are. This is the one
+  // charge shape that cannot ride on `rate`, because a per_unit item's rate is
+  // multiplied by qty and a per_sqft item's by area; either would scale it.
+  const amount = round2(rateAmount + (item.flatAddonTotal ?? 0));
   return { areaPerUnitSqft, totalAreaSqft, amount };
 }
 
@@ -136,6 +149,37 @@ export function toughenedGlassSurcharge(thicknessMm: number): number {
  * item's surcharges list is ignored here exactly as it is when the amount
  * itself is computed.
  */
+export interface CustomAddonLike {
+  amount: number;
+  basis: "flat" | "per_sqft";
+}
+
+/**
+ * The ₹/sqft portion of an item's custom add-ons — folded into the rate by
+ * effectiveRate() so it scales with area, exactly like toughened glass.
+ * per_unit items get nothing here: there is no area for a per-sqft charge to
+ * scale against, so entering one on a per-piece door would be meaningless.
+ * A flat charge on such an item is the correct shape, and is handled by
+ * customAddonFlatTotal() instead.
+ */
+export function customAddonPerSqftTotal(
+  addons: CustomAddonLike[] | undefined,
+  pricingMode: PricingMode
+): number {
+  if (pricingMode !== "per_sqft") return 0;
+  return (addons ?? []).reduce((sum, a) => (a.basis === "per_sqft" ? sum + a.amount : sum), 0);
+}
+
+/**
+ * The flat portion — added once to the item's amount, never multiplied by qty
+ * or area. Applies on BOTH pricing modes: a WPC flush door is per_unit, and
+ * its ₹1500 fitting charge still has to reach the bill. This is the gap the
+ * SURCHARGES map structurally cannot fill.
+ */
+export function customAddonFlatTotal(addons: CustomAddonLike[] | undefined): number {
+  return (addons ?? []).reduce((sum, a) => (a.basis === "flat" ? sum + a.amount : sum), 0);
+}
+
 export function effectiveRate(item: {
   rate: number;
   pricingMode: PricingMode;
@@ -143,6 +187,8 @@ export function effectiveRate(item: {
   /** See toughenedGlassSurcharge() — a variable-by-thickness charge, not a
    *  flat SURCHARGES key, so it's folded in as its own parameter. */
   toughenedGlassMm?: number;
+  /** Only the per_sqft-basis entries affect the rate; see customAddonPerSqftTotal(). */
+  customAddons?: CustomAddonLike[];
 }): number {
   if (item.pricingMode !== "per_sqft") return item.rate;
   const flatSurchargeSum = item.surcharges.reduce(
@@ -150,7 +196,8 @@ export function effectiveRate(item: {
     0
   );
   const toughenedSurcharge = item.toughenedGlassMm ? toughenedGlassSurcharge(item.toughenedGlassMm) : 0;
-  return item.rate + flatSurchargeSum + toughenedSurcharge;
+  const customPerSqft = customAddonPerSqftTotal(item.customAddons, item.pricingMode);
+  return item.rate + flatSurchargeSum + toughenedSurcharge + customPerSqft;
 }
 
 export interface PaymentStage {

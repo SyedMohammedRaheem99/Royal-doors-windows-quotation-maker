@@ -1,4 +1,4 @@
-import type { DiagramType, GstRatePercent, Handing, ItemSpecs, PricingMode } from "@/models/schemas";
+import type { CustomAddon, DiagramType, GstRatePercent, Handing, ItemSpecs, PricingMode } from "@/models/schemas";
 
 /** Client-side working state for one line item, before it's persisted as a QuotationItem. */
 export interface BuilderItem {
@@ -23,6 +23,8 @@ export interface BuilderItem {
   surcharges: string[]; // keys into SURCHARGES
   /** Priced separately from `surcharges` — see lib/pricing.ts's toughenedGlassSurcharge(). */
   toughenedGlassMm?: number;
+  /** Free-form priced extras (DGU glass, WPC fitting, one-offs) — see CustomAddon. */
+  customAddons: CustomAddon[];
   remarks: string;
 }
 
@@ -41,6 +43,7 @@ export function emptyItem(key: string): BuilderItem {
     rate: 0,
     specs: { profile: "", colour: "", glass: "", glassThickness: "", mesh: "", track: "", hardware: "", reinforcement: "" },
     surcharges: [],
+    customAddons: [],
     remarks: "",
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeItem, computeTotals, SURCHARGES } from "../pricing";
+import { computeItem, computeTotals, customAddonFlatTotal, effectiveRate } from "../pricing";
 import type { QuotationInput } from "@/models/schemas";
 
 /**
@@ -12,11 +12,6 @@ import type { QuotationInput } from "@/models/schemas";
  */
 function recomputeLikeServer(input: Pick<QuotationInput, "items" | "gst" | "transportation">) {
   const computedItems = input.items.map((item) => {
-    const surchargeSum =
-      item.pricingMode === "per_sqft"
-        ? item.surcharges.reduce((sum, key) => sum + (SURCHARGES[key as keyof typeof SURCHARGES] ?? 0), 0)
-        : 0;
-    const effectiveRate = item.rate + surchargeSum;
     return {
       ...item,
       ...computeItem({
@@ -24,7 +19,12 @@ function recomputeLikeServer(input: Pick<QuotationInput, "items" | "gst" | "tran
         billedHeightFt: item.billed.h,
         qty: item.qty,
         pricingMode: item.pricingMode,
-        rate: effectiveRate,
+        // Calls the REAL shared helpers rather than re-deriving the surcharge
+        // sum locally, which this file used to do — a local copy silently
+        // stops matching the server the moment a new charge type is added
+        // (custom add-ons were exactly that moment).
+        rate: effectiveRate(item),
+        flatAddonTotal: customAddonFlatTotal(item.customAddons),
       }),
     };
   });
@@ -45,6 +45,7 @@ function item(overrides: Partial<QuotationInput["items"][number]> = {}): Quotati
     rate: 300,
     specs: { profile: "", colour: "", glass: "", glassThickness: "", mesh: "", track: "", hardware: "", reinforcement: "" },
     surcharges: [],
+    customAddons: [],
     diagram: { type: "sliding_2_track", panels: 2, meshPanels: 0, handing: "none", fanPoint: false },
     remarks: "",
     ...overrides,

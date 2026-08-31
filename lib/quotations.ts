@@ -4,7 +4,7 @@ import { quotations as quotationsCollection, type StoredQuotation } from "./coll
 import { canAccessOwned, ownershipFilter, type Actor } from "./authz";
 import { findOrCreateCustomer } from "./customers";
 import { nextQuoteNo } from "./numbering";
-import { computeItem, computeTotals, effectiveRate } from "./pricing";
+import { computeItem, computeTotals, customAddonFlatTotal, effectiveRate } from "./pricing";
 import {
   STATUS_TRANSITIONS,
   type Payment,
@@ -27,7 +27,11 @@ function computeQuotationPricing(input: QuotationInput) {
       billedHeightFt: item.billed.h,
       qty: item.qty,
       pricingMode: item.pricingMode,
+      // Per-sqft custom add-ons ride inside effectiveRate (so they scale with
+      // area); flat ones are added once, after the rate maths, so they survive
+      // on per_unit items too.
       rate: effectiveRate(item),
+      flatAddonTotal: customAddonFlatTotal(item.customAddons),
     });
     return { ...item, ...computed };
   });
@@ -239,6 +243,9 @@ export async function duplicateQuotation(
       specs: item.specs,
       surcharges: item.surcharges,
       toughenedGlassMm: item.toughenedGlassMm,
+      // Copied with fresh ids: a duplicate that dropped these would silently
+      // under-price the new quotation against the one it was cloned from.
+      customAddons: (item.customAddons ?? []).map((a) => ({ ...a, id: crypto.randomUUID() })),
       diagram: item.diagram,
       remarks: item.remarks,
     })),

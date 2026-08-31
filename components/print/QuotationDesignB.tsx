@@ -1066,6 +1066,22 @@ export function QuotationDesignB({
                                     </span>
                                   </>
                                 )}
+                                {/* Custom add-ons (DGU glass, WPC fitting, one-offs).
+                                    The basis is spelled out because the two behave
+                                    differently on the bill: a per-sq.ft charge is
+                                    inside the Rate column's blended figure, a flat one
+                                    is added once to the Amount and appears in neither
+                                    the rate nor its breakdown. */}
+                                {(item.customAddons ?? []).map((addon) => (
+                                  <React.Fragment key={addon.id}>
+                                    <span className="db-spec-k">Add-on</span>
+                                    <span className="db-spec-v">
+                                      {addon.note || "Custom charge"} (+₹
+                                      {formatINRCompact(addon.amount).replace("₹", "")}
+                                      {addon.basis === "per_sqft" ? "/sq.ft" : " flat"})
+                                    </span>
+                                  </React.Fragment>
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -1088,12 +1104,11 @@ export function QuotationDesignB({
                               with no way to see it is 425 base + 50 + 50, which is
                               exactly what read as a pricing error even though the
                               total was correct to the rupee. */}
-                          {(item.surcharges.length > 0 || item.toughenedGlassMm) &&
-                            item.pricingMode === "per_sqft" && (
-                              <div className="db-rate-sub">
-                                ({item.rate}+{effectiveRate(item) - item.rate})
-                              </div>
-                            )}
+                          {effectiveRate(item) !== item.rate && item.pricingMode === "per_sqft" && (
+                            <div className="db-rate-sub">
+                              ({item.rate}+{effectiveRate(item) - item.rate})
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: "right", fontWeight: 700 }}>{formatINR(item.amount)}</td>
                       </tr>

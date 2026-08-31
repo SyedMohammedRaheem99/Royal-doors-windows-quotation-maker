@@ -1,4 +1,9 @@
-import { computeItem, effectiveRate as computeEffectiveRate, type QuotationItemComputed } from "@/lib/pricing";
+import {
+  computeItem,
+  customAddonFlatTotal,
+  effectiveRate as computeEffectiveRate,
+  type QuotationItemComputed,
+} from "@/lib/pricing";
 import type { BuilderItem } from "./types";
 
 /**
@@ -22,6 +27,9 @@ export function computeBuilderItem(item: BuilderItem): QuotationItemComputed & {
     qty: item.qty,
     pricingMode: item.pricingMode,
     rate,
+    // Must mirror lib/quotations.ts's computeQuotationPricing exactly, or the
+    // builder's live preview would quote a different number than the one saved.
+    flatAddonTotal: customAddonFlatTotal(item.customAddons),
   });
 
   return { ...computed, effectiveRate: rate };

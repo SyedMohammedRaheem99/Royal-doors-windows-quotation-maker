@@ -3,7 +3,7 @@
 import { WindowDiagram } from "@/components/diagram/WindowDiagram";
 import { feetToArchLabel, suggestBilledFeet } from "@/lib/dimensions";
 import { SURCHARGES, toughenedGlassSurcharge } from "@/lib/pricing";
-import type { RateCardEntry } from "@/models/schemas";
+import type { CustomAddon, RateCardEntry } from "@/models/schemas";
 import { computeBuilderItem } from "./computeBuilderItem";
 import { ProductPicker } from "./ProductPicker";
 import type { BuilderItem } from "./types";
@@ -66,6 +66,12 @@ export function ItemRow({
     onChange({ ...item, ...fields });
   }
 
+  function patchAddon(index: number, fields: Partial<CustomAddon>) {
+    patch({
+      customAddons: item.customAddons.map((a, i) => (i === index ? { ...a, ...fields } : a)),
+    });
+  }
+
   function handleProductChange(productType: string) {
     const product = rateCard.find((p) => p.productType === productType);
     if (!product) {
@@ -80,6 +86,9 @@ export function ItemRow({
       rate: product.defaultRate,
       surcharges: [],
       toughenedGlassMm: undefined,
+      // Cleared with the rest: a DGU charge left over from the previous product
+      // would silently ride along onto an unrelated one.
+      customAddons: [],
       // The fan-point variants are distinct products, so the flag has to follow
       // the product choice — otherwise picking "Ventilator with fan point"
       // leaves fanPoint false and draws the plain louvered vent, making the two
@@ -399,6 +408,80 @@ export function ItemRow({
               </div>
             </div>
           )}
+
+          {/* Deliberately OUTSIDE the per_sqft gate above: a flat add-on (a WPC
+              door's fitting charge) has to be available on per_unit items too,
+              which is the whole reason this exists separately from SURCHARGES. */}
+          <div className="col-span-2 md:col-span-4">
+            <label className={labelClass()}>Custom add-ons</label>
+            <div className="flex flex-col gap-2">
+              {item.customAddons.map((addon, i) => (
+                <div key={addon.id} className="flex flex-wrap items-center gap-2">
+                  <input
+                    className={inputClass("w-28")}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="Price ₹"
+                    value={addon.amount || ""}
+                    onChange={(e) => patchAddon(i, { amount: Number(e.target.value) || 0 })}
+                  />
+                  <select
+                    className={inputClass()}
+                    value={addon.basis}
+                    onChange={(e) => patchAddon(i, { basis: e.target.value as CustomAddon["basis"] })}
+                  >
+                    {/* per_sqft is meaningless on a per-piece item — there is no
+                        area to scale against, and lib/pricing.ts ignores it —
+                        so it is not offered there. */}
+                    {item.pricingMode === "per_sqft" && <option value="per_sqft">per sqft</option>}
+                    <option value="flat">flat</option>
+                  </select>
+                  <input
+                    className={inputClass("min-w-[12rem] flex-1")}
+                    placeholder="Description (e.g. DGU glass 20mm)"
+                    value={addon.note}
+                    onChange={(e) => patchAddon(i, { note: e.target.value })}
+                  />
+                  <span className="text-xs tabular-nums text-neutral-500">
+                    +₹
+                    {(addon.basis === "per_sqft"
+                      ? addon.amount * computed.totalAreaSqft
+                      : addon.amount
+                    ).toLocaleString("en-IN")}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs text-red-600 hover:underline"
+                    onClick={() => patch({ customAddons: item.customAddons.filter((_, j) => j !== i) })}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="self-start text-xs font-medium text-[#0f3d2e] hover:underline"
+                onClick={() =>
+                  patch({
+                    customAddons: [
+                      ...item.customAddons,
+                      {
+                        id: crypto.randomUUID(),
+                        amount: 0,
+                        // Default to the basis that suits this item's pricing
+                        // mode, so the common case needs no extra click.
+                        basis: item.pricingMode === "per_sqft" ? "per_sqft" : "flat",
+                        note: "",
+                      },
+                    ],
+                  })
+                }
+              >
+                + Add custom charge
+              </button>
+            </div>
+          </div>
 
           <div className="col-span-2 md:col-span-4">
             <label className={labelClass()}>Remarks</label>
