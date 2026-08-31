@@ -8,6 +8,7 @@ import { computePaymentStages, effectiveRate, SURCHARGES } from "@/lib/pricing";
 import { amountInWords } from "@/lib/words";
 import { withRevisionSuffix } from "@/lib/numbering-pure";
 import type { Quotation, Settings } from "@/models/schemas";
+import { PrintButton } from "./PrintButton";
 
 const SURCHARGE_LABELS: Record<string, string> = {
   nonWhiteOrOneWayGlass: `Non-white / one-way glass (+₹${SURCHARGES.nonWhiteOrOneWayGlass}/sq.ft)`,
@@ -719,6 +720,8 @@ export function QuotationDesignB({
           line-height: 1.4;
         }
       `}</style>
+
+      <PrintButton />
 
       <div className="design-b-doc">
         {/* One continuous sheet. The browser paginates this naturally in
